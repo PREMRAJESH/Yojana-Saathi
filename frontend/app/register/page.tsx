@@ -135,7 +135,7 @@ export default function Register() {
       if (!user) throw new Error("Failed to authenticate user after signup.");
 
       // 2. Insert into citizen_profiles
-      const { error: dbError } = await supabase.from("citizen_profiles").insert({
+      const { error: dbError } = await supabase.from("citizen_profiles").upsert({
         id: user.id,
         full_name: profile.full_name,
         age: profile.age,
