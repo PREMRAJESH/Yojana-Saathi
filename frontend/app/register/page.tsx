@@ -13,6 +13,7 @@ import {
   type GovIdKey,
 } from "../lib/api-types";
 import { submitIntake } from "../lib/api-client";
+import { supabase } from "../lib/supabaseClient";
 
 const INDIAN_STATES = [
   "Andhra Pradesh", "Arunachal Pradesh", "Assam", "Bihar", "Chhattisgarh",
@@ -110,10 +111,53 @@ export default function Register() {
     };
 
     try {
+      // 1. Sign up user
+      const { data: authData, error: authError } = await supabase.auth.signUp({
+        email: form.email,
+        password: form.password,
+        options: {
+          data: { full_name: form.full_name }
+        }
+      });
+
+      if (authError) throw new Error(authError.message);
+      
+      const user = authData.user;
+      if (!user) throw new Error("Failed to create user.");
+
+      // 2. Insert into citizen_profiles
+      const { error: dbError } = await supabase.from("citizen_profiles").insert({
+        id: user.id,
+        full_name: profile.full_name,
+        age: profile.age,
+        gender: profile.gender,
+        state: profile.state,
+        district: profile.district,
+        annual_income: profile.annual_income,
+        occupation: profile.occupation,
+        social_category: profile.social_category,
+        disability_status: profile.disability_status,
+        family_size: profile.family_size,
+        has_bpl_card: profile.has_bpl_card,
+        land_owned_acres: profile.land_owned_acres,
+        education_level: profile.education_level,
+        gov_id_available: profile.gov_id_available
+      });
+
+      if (dbError) throw new Error(`Database Error: ${dbError.message}`);
+
+      // 3. Call backend API for eligibility
       const result = await submitIntake(profile);
-      // Store request_id in sessionStorage for the draft endpoint
-      sessionStorage.setItem("intake_request_id", result.request_id);
-      sessionStorage.setItem("intake_result", JSON.stringify(result));
+
+      // 4. Insert into eligibility_history
+      const { error: historyError } = await supabase.from("eligibility_history").insert({
+        user_id: user.id,
+        request_id: result.request_id,
+        results: result
+      });
+
+      if (historyError) throw new Error(`History Error: ${historyError.message}`);
+
       window.location.href = "/dashboard";
     } catch (err) {
       setError(err instanceof Error ? err.message : "Something went wrong. Please try again.");

@@ -2,20 +2,33 @@
 import { useState } from "react";
 import Link from "next/link";
 
+import { supabase } from "../lib/supabaseClient";
+
 export default function Login() {
   const [showPassword, setShowPassword] = useState(false);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
-    // TODO: wire to backend auth
-    setTimeout(() => {
-      setLoading(false);
+    setError(null);
+    
+    try {
+      const { error } = await supabase.auth.signInWithPassword({
+        email,
+        password,
+      });
+
+      if (error) throw new Error(error.message);
+
       window.location.href = "/dashboard";
-    }, 1000);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to sign in");
+      setLoading(false);
+    }
   };
 
   return (
@@ -77,6 +90,13 @@ export default function Login() {
         <div className="w-full max-w-md">
           <h1 className="text-3xl font-bold text-navy-900 mb-2">Welcome back</h1>
           <p className="text-slate-500 mb-8">Enter your credentials to continue.</p>
+
+          {error && (
+            <div className="mb-6 p-3 bg-red-50 border border-red-200 rounded-xl text-sm text-red-600 flex items-center gap-2">
+              <svg className="w-4 h-4 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" /></svg>
+              {error}
+            </div>
+          )}
 
           <form onSubmit={handleSubmit} className="space-y-5">
             {/* Email */}

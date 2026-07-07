@@ -13,6 +13,8 @@ type DocItem = {
   requiredFor: string[];
 };
 
+import { supabase } from "../lib/supabaseClient";
+
 export default function Documents() {
   const [docs, setDocs] = useState<DocItem[]>(
     GOV_ID_KEYS.map((key) => ({ key, status: "missing", requiredFor: [] }))
@@ -23,19 +25,43 @@ export default function Documents() {
 
   // Populate initial state from intake result
   useEffect(() => {
-    const raw = sessionStorage.getItem("intake_result");
-    if (!raw) return;
-    try {
-      const data = JSON.parse(raw) as IntakeResponse;
-      setDocs(GOV_ID_KEYS.map((key) => {
-        const requiredFor = data.eligible_schemes
-          .filter(s => s.missing_documents.includes(key))
-          .map(s => s.scheme_name);
-        // If no scheme lists it as missing, assume it was provided
-        const wasMissing = data.eligible_schemes.some(s => s.missing_documents.includes(key));
-        return { key, status: wasMissing ? "missing" : "uploaded", requiredFor };
-      }));
-    } catch { /* ignore */ }
+    async function loadData() {
+      let data: IntakeResponse | null = null;
+
+      const { data: { user } } = await supabase.auth.getUser();
+      if (user) {
+        const { data: history } = await supabase
+          .from("eligibility_history")
+          .select("results")
+          .eq("user_id", user.id)
+          .order("created_at", { ascending: false })
+          .limit(1)
+          .single();
+
+        if (history && history.results) {
+          data = history.results as IntakeResponse;
+        }
+      }
+
+      // Fallback
+      if (!data) {
+        const raw = sessionStorage.getItem("intake_result");
+        if (raw) {
+          try { data = JSON.parse(raw) as IntakeResponse; } catch { /* ignore */ }
+        }
+      }
+
+      if (data) {
+        setDocs(GOV_ID_KEYS.map((key) => {
+          const requiredFor = data!.eligible_schemes
+            .filter(s => s.missing_documents.includes(key))
+            .map(s => s.scheme_name);
+          const wasMissing = data!.eligible_schemes.some(s => s.missing_documents.includes(key));
+          return { key, status: wasMissing ? "missing" : "uploaded", requiredFor };
+        }));
+      }
+    }
+    loadData();
   }, []);
 
   const uploaded = docs.filter(d => d.status === "uploaded");
