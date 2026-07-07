@@ -168,8 +168,9 @@ export default function Register() {
       if (historyError) throw new Error(`History Error: ${historyError.message}`);
 
       window.location.href = "/dashboard";
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Something went wrong. Please try again.");
+    } catch (err: any) {
+      const msg = err?.message || (typeof err === "string" ? err : JSON.stringify(err));
+      setError(msg === "{}" ? "An unexpected error occurred during sign up." : msg);
       setLoading(false);
     }
   };
