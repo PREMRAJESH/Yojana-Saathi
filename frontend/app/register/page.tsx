@@ -122,8 +122,17 @@ export default function Register() {
 
       if (authError) throw new Error(authError.message);
       
-      const user = authData.user;
-      if (!user) throw new Error("Failed to create user.");
+      // Since email confirmation might have prevented an automatic session, 
+      // the DB trigger confirms the email instantly. Now we explicitly sign in:
+      const { data: signInData, error: signInError } = await supabase.auth.signInWithPassword({
+        email: form.email,
+        password: form.password,
+      });
+
+      if (signInError) throw new Error(`Login Error: ${signInError.message}`);
+      
+      const user = signInData.user;
+      if (!user) throw new Error("Failed to authenticate user after signup.");
 
       // 2. Insert into citizen_profiles
       const { error: dbError } = await supabase.from("citizen_profiles").insert({
