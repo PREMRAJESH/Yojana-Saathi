@@ -53,6 +53,16 @@ class Settings(BaseSettings):
     request_cache_ttl_seconds: int = Field(default=1800)  # 30 minutes
     request_cache_max_size: int = Field(default=1000)
 
+    # --- Supabase & OCR ---
+    supabase_url: str = "https://kllduyiimpumgmylngoj.supabase.co"
+    supabase_service_role_key: str = "placeholder_service_role_key"
+    supabase_jwt_secret: str = "placeholder_jwt_secret"
+    ocr_space_api_key: str = "placeholder_ocr_space_api_key"
+    internal_api_secret: str = "placeholder_internal_api_secret"
+
+
+
+
     @field_validator("allowed_origins")
     @classmethod
     def _reject_wildcard_origin(cls, v: str) -> str:

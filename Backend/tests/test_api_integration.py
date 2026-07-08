@@ -19,8 +19,27 @@ from .conftest import make_profile_dict
 async def client():
     """An AsyncClient bound to a freshly built app, with lifespan run."""
     app = create_app()
+    
+    from Backend.core.supabase_client import get_supabase_client, get_service_role_client
+    from .conftest import MockSupabaseClient
+    import Backend.core.auth as auth_mod1
+    
+    mock_client = MockSupabaseClient()
+    app.dependency_overrides[get_supabase_client] = lambda: mock_client
+    app.dependency_overrides[get_service_role_client] = lambda: mock_client
+    app.dependency_overrides[auth_mod1.get_current_user] = lambda: "mocked_user_uuid"
+    
+    try:
+        import core.auth as auth_mod2
+        app.dependency_overrides[auth_mod2.get_current_user] = lambda: "mocked_user_uuid"
+    except ImportError:
+        pass
+    
     transport = ASGITransport(app=app)
-    async with AsyncClient(transport=transport, base_url="http://test") as c:
+    async with AsyncClient(
+        transport=transport,
+        base_url="http://test"
+    ) as c:
         # Manually run lifespan so app.state is populated.
         async with app.router.lifespan_context(app):
             yield c
@@ -36,7 +55,7 @@ async def test_health_ok(client):
     assert resp.status_code == 200
     body = resp.json()
     assert body["status"] == "ok"
-    assert body["agents_online"] == ["intake", "eligibility", "ranking", "docgap", "drafter"]
+    assert body["agents_online"] == ["intake", "eligibility", "ranking", "docgap", "drafter", "document"]
 
 
 # ---------------------------------------------------------------------------
