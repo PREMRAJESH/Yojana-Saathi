@@ -28,6 +28,7 @@ policy, and how to run and test it.
 13. [API endpoints reference](#13-api-endpoints-reference)
 14. [Testing](#14-testing)
 15. [Running & deploying](#15-running--deploying)
+16. [Supabase & Database Architecture](#16-supabase--database-architecture)
 
 ---
 
@@ -97,10 +98,9 @@ successful outcome, not an error.
 
 - **Framework:** FastAPI + Uvicorn (ASGI), Python 3.12.
 - **Validation:** Pydantic v2 (request/response models + scheme file validation).
-- **State:** stateless request handling, except an in-memory TTL cache that holds
-  the normalized profile between the `intake` and `draft` calls (keyed by
-  `request_id`).
-- **No database.** Schemes load from a JSON file at startup; nothing is persisted.
+- **State:** Stateful persistence via Supabase PostgreSQL, combined with stateless request handling. An in-memory TTL cache holds intermediate profile states.
+- **Database & Auth:** Supabase integration with PostgreSQL (user accounts, citizen profiles, missing documents tracking, scheme catalog, and user-to-scheme application records) secured via Row-Level Security (RLS) policies and JWT access tokens.
+- **Asynchronous Triggers:** Supabase Deno Edge Functions trigger re-matching hooks on FastAPI upon profile or scheme modifications.
 
 ---
 
@@ -108,7 +108,7 @@ successful outcome, not an error.
 
 ```
 Backend/
-├── main.py                     # FastAPI app: lifespan, routes, error handlers
+├── main.py                     # FastAPI app: lifespan, routes, error handlers, matching hooks
 ├── config.py                   # Typed Settings (pydantic-settings), env-driven
 ├── pytest.ini                  # Test config (asyncio auto mode)
 ├── requirements.txt            # Pinned exact dependency versions
@@ -134,7 +134,8 @@ Backend/
 │   ├── security.py             # rate limiter + CORS wiring
 │   ├── sanitization.py         # HTML/script stripping for free text
 │   ├── request_cache.py        # in-memory TTL/LRU cache (request_id → profile)
-│   └── logging_config.py       # structlog + Sentry setup
+│   ├── logging_config.py       # structlog + Sentry setup
+│   └── supabase_client.py      # Supabase client wrapper (service and public)
 │
 ├── llm/
 │   └── gemini_client.py        # thin async Gemini wrapper (generation only)
@@ -142,15 +143,16 @@ Backend/
 ├── data/
 │   └── schemes.json            # 20 welfare scheme definitions + rules
 │
-└── tests/                      # pytest suite (~1,200 lines, per-agent + e2e)
-    ├── conftest.py             # shared fixtures (VALID_PROFILE_DICT)
+└── tests/                      # pytest suite (~1,500 lines, per-agent + integration)
+    ├── conftest.py             # shared fixtures + stateful MockSupabaseClient
     ├── test_intake_agent.py
     ├── test_eligibility_agent.py
     ├── test_ranking_agent.py
     ├── test_docgap_agent.py
     ├── test_drafter_agent.py
     ├── test_pipeline.py
-    └── test_api_integration.py
+    ├── test_api_integration.py
+    └── test_supabase_auth_and_documents.py # JWT, admin rules, webhooks & OCR tests
 ```
 
 > The `.venv/` and `.venv_clean/` directories are local virtual environments and
@@ -201,119 +203,121 @@ by the Docker `HEALTHCHECK`.
 
 ## 5. The five agents in detail
 
-The word "agent" here means a **single-responsibility module** in the pipeline —
-not an autonomous LLM agent. Four run inside the intake pipeline; the fifth
-(Drafter) runs only on the draft endpoint.
+The word "agent" here means a **single-responsibility module** in the pipeline — not an autonomous LLM agent. Four run inside the intake pipeline; the fifth (Drafter) runs only on the draft endpoint.
 
 ### 5.1 Intake Agent — `agents/intake_agent.py`
 
-**Job:** turn a validated raw request into a clean, normalized profile.
+**Job:** Turn a validated raw request into a clean, normalized profile.
 
-Pydantic already handles schema validation (types, ranges, enum values, defaults).
-The Intake agent adds what schema validation *cannot* express:
+Pydantic handles initial schema validation (validating types, boundary ranges, enum values, and defaults). The Intake agent adds normalization and defensive sanitization logic that cannot be expressed via schema validation alone:
 
-- **Defaults** (applied by the model): `disability_status → "none"`,
-  `land_owned_acres → 0`.
-- **Sanitization** of the free-text fields `full_name`, `state`, `district` — HTML
-  and script markup is stripped (see [sanitization](#93-sanitization--coresanitizationpy)).
-- **Guard:** if any free-text field is *empty after sanitization* (e.g. the input
-  was pure markup), it raises `ValueError` — we never proceed with a blank name,
-  state, or district.
+- **Defaults** (applied by the Pydantic models): `disability_status` defaults to `"none"` and `land_owned_acres` defaults to `0`.
+- **Sanitization**: Applies defensive HTML/script stripping (using `core/sanitization.py`) to the free-text fields `full_name`, `state`, and `district`.
+- **Guard**: Loops through the sanitized text fields. If any field is empty after sanitization (e.g., the input was pure markup), it raises a `ValueError` with the message `"{field_name} is empty after sanitization"`. This blocks processing with blank values.
 
-Returns a normalized `CitizenProfile` via `model_copy(update=…)`.
+Returns a normalized `CitizenProfile` constructed via `model_copy(update=...)` which skips re-validation since the inputs are already-validated sanitized strings.
 
 ### 5.2 Eligibility Reasoning Agent — `agents/eligibility_agent.py` ★ the core
 
-**Job:** deterministically decide eligibility and compute a confidence score.
+**Job:** Deterministically decide eligibility and compute a boundary-sensitive confidence score.
 
-#### Rule semantics (critical)
+#### Rule Semantics (critical)
+A rule field that is `None` (for numbers) or an **empty list** represents **"NO RESTRICTION"** on that dimension (it does **not** mean "nobody qualifies"). A scheme is eligible only if **every applicable check passes**.
 
-A rule field that is `None` (for numbers) or an **empty list** means
-**"NO RESTRICTION"** on that dimension — it does **not** mean "nobody qualifies".
-A scheme is eligible only if **every applicable check passes**.
+#### The Seven Rule Checks
+Each check is a small, independently unit-tested function returning a `RuleCheck` dataclass containing:
+- `name` (str)
+- `applicable` (bool)
+- `passed` (bool)
+- `detail` (str)
 
-#### The seven rule checks
+By convention, if a rule is not applicable, `applicable` is set to `False` and `passed` defaults to `True`.
 
-Each check is a small, independently unit-tested function returning a `RuleCheck`
-(`name`, `applicable`, `passed`, `detail`). By convention `applicable=False` always
-implies `passed=True`.
+| Check Function | Rule Fields | Passes When / Logic | Exact `detail` Format |
+|---|---|---|---|
+| `check_age` | `min_age`, `max_age` | Age within `[min, max]` (either bound may be open). If both are `None`, it is marked not applicable. | `detail=f"age={profile.age} in [{lo},{hi}]"` |
+| `check_income` | `max_annual_income` | `annual_income <= cap`. | `detail=f"income={profile.annual_income} cap={cap}"` |
+| `check_occupation` | `allowed_occupations` | `profile.occupation.value` is in the `allowed_occupations` list. | `detail=f"occupation={profile.occupation.value}"` |
+| `check_social_category` | `allowed_social_categories` | `profile.social_category.value` is in the `allowed_social_categories` list. | `detail=f"category={profile.social_category.value}"` |
+| `check_disability` | `required_disability_status` | `profile.disability_status.value` is in the `required_disability_status` list. | `detail=f"disability={profile.disability_status.value}"` |
+| `check_state` | `state_restricted_to` | `profile.state.strip().casefold()` matches any item in the `state_restricted_to` list (whitespace stripped, case-insensitive). | `detail=f"state={profile.state}"` |
+| `check_gender` | `gender_restricted_to` | `profile.gender.value == restriction.value`, unless restriction is `any`. | `detail=f"gender={profile.gender.value}"` |
 
-| Check | Rule fields | Passes when |
-|-------|-------------|-------------|
-| `check_age` | `min_age`, `max_age` | age within `[min, max]` (either bound may be open) |
-| `check_income` | `max_annual_income` | `annual_income <= cap` |
-| `check_occupation` | `allowed_occupations` | citizen's occupation is in the list |
-| `check_social_category` | `allowed_social_categories` | citizen's category is in the list |
-| `check_disability` | `required_disability_status` | citizen's status is in the required set |
-| `check_state` | `state_restricted_to` | citizen's state matches (case-insensitive) |
-| `check_gender` | `gender_restricted_to` | matches, unless restriction is `any` |
+`evaluate_scheme()` runs all checks; the scheme is eligible iff `all(passed)` is true.
 
-`evaluate_scheme()` runs all checks; the scheme is eligible iff `all(passed)`.
+#### Confidence Scoring (`eligibility_match_score`, 0.0–1.0)
+For an eligible scheme, the score starts at **1.0** and subtracts penalties for **near-boundary** conditions:
+- **Income boundary**: If `cap` is not None and `profile.annual_income >= cap * 0.90` (within 10% below cap), applies `income_near_cap` penalty of **-0.10**.
+- **Age min boundary**: If `min_age` is not None and `0 <= (profile.age - min_age) <= 2` (within 2 years above the minimum age), applies `age_near_min` penalty of **-0.05**.
+- **Age max boundary**: If `max_age` is not None and `0 <= (max_age - profile.age) <= 2` (within 2 years below the maximum age), applies `age_near_max` penalty of **-0.05**.
 
-#### Confidence scoring (`eligibility_match_score`, 0.0–1.0)
+The final score is computed as `max(0.0, min(1.0, 1.0 - sum(penalties)))`. Ineligible schemes receive a score of `0.0`.
+- `>= 0.95`: Clearly eligible.
+- `~0.70–0.85`: Eligible, but close to a boundary (the UI should signal double-checking with authorities).
 
-For an eligible scheme, the score starts at **1.0** and subtracts penalties for
-**near-boundary** conditions — an honest "this is a close call, double-check with
-the authority" signal:
-
-- Income within **10%** of the cap → `income_near_cap` → **−0.10**.
-- Age within **2 years** of `min_age` → `age_near_min` → **−0.05**.
-- Age within **2 years** of `max_age` → `age_near_max` → **−0.05**.
-
-Score is clamped to `[0.0, 1.0]`. Interpretation: `>= 0.95` clearly eligible,
-`~0.70–0.85` eligible but boundary-close. Ineligible schemes score `0.0`.
-
-`find_eligible_schemes()` returns `EligibilityResult`s only for schemes the citizen
-qualifies for — an empty list is a perfectly valid outcome.
+`find_eligible_schemes()` evaluates all schemes and returns `EligibilityResult`s ONLY for eligible ones. An empty list is a normal outcome.
 
 ### 5.3 Ranking Agent — `agents/ranking_agent.py`
 
-**Job:** order eligible schemes and assign `priority_rank` (1 = highest priority).
+**Job:** Order eligible schemes and assign `priority_rank` (1 = highest priority).
 
-Fully deterministic ordering:
+Ordering is fully deterministic and follows this sequence:
 
-1. **Value tier** — classify each scheme's `benefit_value_estimate` string into
-   LOW/MEDIUM/HIGH:
-   - Parse the **largest rupee figure** in the text.
-   - `>= 100,000` **or** contains a high-value keyword
-     (`insurance`, `pension`, `cover`, `subsidy`) → **HIGH (3)**.
-   - `>= 10,000` → **MEDIUM (2)**; otherwise **LOW (1)**.
-2. **Combined score** = `1.0 × value_tier + 1.0 × eligibility_match_score` (tier
-   dominates, match score refines).
-3. **Sort** descending by combined score. Ties break by a fixed **category
-   priority** (pension → health → agriculture → disability → women_child →
-   education → housing → other), then by `scheme_id` for total determinism.
-4. Assign `priority_rank` starting at 1.
-
-Empty input → empty list.
+1. **Value Tiering**: Classifies each scheme's `benefit_value_estimate` string into `TIER_LOW` (1), `TIER_MEDIUM` (2), or `TIER_HIGH` (3).
+   - Extracts all number patterns via regex `_NUMBER_RE = re.compile(r"[\d][\d,]*")`, removes commas, and converts to integers.
+   - Finds the largest integer figure `largest = max(amounts)`.
+   - Tier logic:
+     - `largest >= 100000` OR contains high-value keywords (`insurance`, `pension`, `cover`, `subsidy`) -> `TIER_HIGH` (3).
+     - `largest >= 10000` -> `TIER_MEDIUM` (2).
+     - Otherwise -> `TIER_LOW` (1).
+2. **Combined Score**: Blends value tier and match score with equal weights (`TIER_WEIGHT = 1.0`, `MATCH_WEIGHT = 1.0`):
+   - `combined_score = 1.0 * value_tier + 1.0 * eligibility_match_score`
+3. **Deterministic Sorting**: Sorts descending by combined score. Ties are broken using:
+   - **Category Priority** (lower index = higher priority):
+     `pension` (0) → `health` (1) → `agriculture` (2) → `disability` (3) → `women_child` (4) → `education` (5) → `housing` (6) → `other` (7).
+   - **Scheme ID**: Alphabetic comparison of `scheme_id` (ascending).
+4. **Rank Assignment**: Assigns sequential `priority_rank` starting at 1.
 
 ### 5.4 Document Gap Agent — `agents/docgap_agent.py`
 
-**Job:** for each eligible scheme, list the required documents the citizen lacks.
+**Job:** For each eligible scheme, list the required documents that the citizen lacks.
 
-- `available_documents(profile)` — the set of doc keys the citizen marked `True`
-  in `gov_id_available`.
-- `missing_documents_for_scheme(profile, scheme)` — `required_documents − available`,
-  returned in the canonical `GOV_ID_KEYS` order (stable, deterministic).
-- An empty list means the citizen has every document the scheme requires.
+- **Available Set**: Extracts document keys where the citizen marked `True` in `gov_id_available`.
+- **Missing Set**: Computes `required_documents - available`.
+- **Stable Order**: The returned missing documents list is filtered and ordered by the canonical `GOV_ID_KEYS` order: `["aadhaar", "income_certificate", "caste_certificate", "ration_card"]`.
 
-The four canonical document keys are: `aadhaar`, `income_certificate`,
-`caste_certificate`, `ration_card`.
+An empty list means the citizen has all required documents.
 
 ### 5.5 Application Drafter Agent — `agents/drafter_agent.py`
 
-**Job:** generate a pre-filled application letter — **on demand only**, via
-`GET /api/draft/{scheme_id}`. It is deliberately **not** run for every scheme in
-the intake response (that would be wasteful).
+**Job:** Generate a pre-filled application letter **on-demand** (runs only on `GET /api/draft/{scheme_id}`).
 
-- `build_template(profile, scheme)` — a deterministic formal letter: addressee =
-  the scheme's `issuing_authority`, subject, the citizen's name/district/state,
-  income, social category, and attached (available) documents.
-- `build_next_steps(scheme)` — a generic 3-step submission checklist (visit CSC/
-  portal, submit with documents, note the reference number).
-- `draft_application(profile, scheme, llm)` — builds the template, then optionally
-  polishes it via Gemini. Returns `(text, used_llm)`; **any** LLM failure returns
-  the raw template with `used_llm=False`.
+- **Document Label Mapping**: Maps database keys to human-readable strings:
+  - `aadhaar` -> `"Aadhaar card"`
+  - `income_certificate` -> `"Income certificate"`
+  - `caste_certificate` -> `"Caste certificate"`
+  - `ration_card` -> `"Ration card"`
+- **Template Generation**: Builds a formal text letter. If `annual_income` is a float but represents a whole integer (e.g. `90000.0`), it is rendered as an integer.
+  ```text
+  To: {scheme.issuing_authority}
+  Subject: Application for {scheme.scheme_name}
+
+  I, {profile.full_name}, residing in {profile.district}, {profile.state}, hereby apply for {scheme.scheme_name}.
+  My annual income is ₹{income} and I belong to the {profile.social_category.value} category.
+  Attached documents: {docs_line}
+  ```
+  `docs_line` joins the human-readable labels of the citizen's available documents with `", "`, or outputs `"None available"`.
+- **Next Steps**: Always returns a stable, generic 3-step checklist:
+  1. `Visit the nearest Common Service Centre (CSC) or the official portal.`
+  2. `Submit the application for {scheme.scheme_name} with the attached documents.`
+  3. `Note your application reference number for tracking.`
+- **LLM Polish**: Wraps the letter in a prompt and sends it to the Gemini client:
+  ```text
+  Rewrite the following government scheme application to read more naturally and politely in formal English. Keep ALL facts, names, numbers, and the recipient exactly as given. Do not invent details. Return only the rewritten letter.
+
+  {template}
+  ```
+  If the LLM call succeeds, returns `(polished_text, True)`. If it fails, returns `(raw_template_text, False)`.
 
 ---
 
@@ -328,28 +332,38 @@ Sequence for every intake request:
 3. **Ranking** → `rank_schemes(eligible)`.
 4. **DocGap + optional LLM polish** → build one `SchemeResult` per ranked scheme.
 
-The Drafter is intentionally *not* invoked here.
+The Drafter is intentionally **not** invoked here.
 
 ### Optional benefit-summary polish (concurrent)
 
-If the LLM is available and there are ranked schemes, all benefit summaries are
-polished **concurrently** via `asyncio.gather(..., return_exceptions=True)`. Each
-polish call has its own fallback to the raw summary. If **any** polish raised or
-fell back, a `degraded` flag is set.
+If the LLM is available (`llm.available` is `True`) and there are ranked schemes, the pipeline attempts to polish all benefit summaries concurrently:
+- **Private Helper Coroutine**: A local `_polish(scheme: Scheme)` function is declared. It wraps `llm.polish` using the prompt format:
+  ```text
+  Rewrite this welfare scheme benefit summary in one or two clear, friendly sentences for a citizen. Keep all facts and numbers accurate; do not invent eligibility claims. Return only the rewritten summary.
 
-### Processing status
+  Scheme: {scheme.scheme_name}
+  Summary: {scheme.benefit_summary}
+  ```
+  It returns `(scheme_id, polished_text, used_llm)`.
+- **Concurrent Execution**: Executes all polish operations in parallel via `asyncio.gather(*(...), return_exceptions=True)`.
+- **Graceful Failure Accumulation**: Iterates through the results:
+  - If a result is an instance of `Exception` (representing a connection failure, timeout, etc.), it sets `degraded = True` and proceeds, keeping the original summary.
+  - If the result returned successfully but `used_llm` is `False` (fell back to template), it sets `degraded = True`.
+  - Otherwise, it saves the polished text to the output summaries dictionary.
 
-- All good → `processing_status = "success"`.
-- Any LLM degradation → `processing_status = "partial_success"`.
+### Processing Status
 
-The orchestrator returns a `PipelineOutput(response, normalized_profile)`. `main.py`
-puts `response` on the wire and stashes `normalized_profile` in the request cache.
+- **No Degradation**: If no exceptions or fallbacks occurred during LLM calls, `processing_status` is set to `"success"`.
+- **Any LLM degradation**: If `degraded` is `True`, `processing_status` becomes `"partial_success"`.
+- **Orchestration Return**: The orchestrator returns a `PipelineOutput` containing:
+  - `response`: An `IntakeResponse` model containing the list of `SchemeResult` elements, total count, request ID, and processing status.
+  - `normalized_profile`: The sanitized and normalized `CitizenProfile` (stashed in the request cache by `main.py`).
 
 ---
 
 ## 7. Data models & the frozen API contract
 
-All models live in `models/` and use Pydantic v2 with `extra="forbid"`.
+All models live in `models/` and use Pydantic v2. To ensure strict validation and prevent API contract drift, all request and response models set `model_config = ConfigDict(extra="forbid")` to reject any payload containing unknown or extraneous fields.
 
 ### 7.1 Enums — `models/enums.py`
 
@@ -387,42 +401,26 @@ Exact lowercase snake_case values; anything else is rejected with a `422`.
 | `education_level` | EducationLevel enum | required |
 | `gov_id_available` | GovIdAvailable | required |
 
-**`GovIdAvailable`** — exactly four booleans (`aadhaar`, `income_certificate`,
-`caste_certificate`, `ration_card`), `extra="forbid"`.
+**`GovIdAvailable`** — exactly four booleans (`aadhaar`, `income_certificate`, `caste_certificate`, `ration_card`), `extra="forbid"`.
 
-**Numeric-string guard:** a `field_validator` on `annual_income` and
-`land_owned_acres` explicitly rejects `str` and `bool` inputs (Pydantic would
-otherwise coerce `"180000"` → `180000`). `bool` is a subclass of `int`, so it is
-blocked from masquerading as a number.
+**Numeric-string guard:** Pydantic normally attempts to coerce string integers (e.g. `"180000"`) or booleans to floats. To enforce a frozen contract, a custom pre-validator `@field_validator("annual_income", "land_owned_acres", mode="before")` is declared. It checks `isinstance(v, str) or isinstance(v, bool)` and explicitly raises a `ValueError("must be a number, not a string or boolean")`. Because `bool` is a subclass of `int` in Python, this also successfully blocks booleans from being coerced to numeric values.
 
 ### 7.3 Response models — `models/response_models.py`
 
-- **`SchemeResult`** — one eligible scheme: `scheme_id`, `scheme_name`,
-  `scheme_category`, `benefit_summary`, `benefit_value_estimate`,
-  `eligibility_match_score` (0–1), `priority_rank` (≥1), `missing_documents`,
-  `application_url`, and `drafted_application_text` (always `null` in intake).
-- **`IntakeResponse`** — `request_id`, `eligible_schemes` (**always an array**),
-  `total_eligible_count`, `processing_status`, `error_message`.
-- **`DraftResponse`** — `scheme_id`, `drafted_application_text`,
-  `required_documents`, `next_steps`.
+- **`SchemeResult`** — one eligible scheme: `scheme_id`, `scheme_name`, `scheme_category`, `benefit_summary`, `benefit_value_estimate`, `eligibility_match_score` (0–1), `priority_rank` (≥1), `missing_documents`, `application_url`, and `drafted_application_text` (always `null` in intake).
+- **`IntakeResponse`** — `request_id`, `eligible_schemes` (**always an array, never null**), `total_eligible_count`, `processing_status`, `error_message`.
+- **`DraftResponse`** — `scheme_id`, `drafted_application_text`, `required_documents`, `next_steps`.
 - **`HealthResponse`** — `status`, `agents_online`.
-- **`ErrorResponse`** — the standard error shape: `processing_status="error"`,
-  `error_message`, `error_code`.
+- **`ErrorResponse`** — the standard error shape: `processing_status="error"`, `error_message`, `error_code`.
 
 ### 7.4 Scheme models — `models/scheme_models.py` (internal)
 
-Not part of the public contract, but validated at load time so a bad data entry
-becomes a clear startup error rather than a silent eligibility bug.
+Not part of the public contract, but validated at load time so a bad data entry becomes a clear startup error rather than a silent eligibility bug.
 
-- **`EligibilityRules`** — `min_age`, `max_age`, `max_annual_income` (nullable),
-  `allowed_occupations`, `allowed_social_categories`, `required_disability_status`,
-  `state_restricted_to` (lists, default empty), `gender_restricted_to` (default
-  `any`).
-- **`Scheme`** — `scheme_id`, `scheme_name`, `scheme_category`,
-  `issuing_authority`, `eligibility_rules`, `benefit_summary`,
-  `benefit_value_estimate`, `required_documents`, `application_url`.
-  - Validator: `scheme_id` must be lowercase, hyphenated (no spaces/underscores).
-  - Validator: `required_documents` must be a subset of the four `GOV_ID_KEYS`.
+- **`EligibilityRules`** — `min_age`, `max_age`, `max_annual_income` (nullable), `allowed_occupations`, `allowed_social_categories`, `required_disability_status`, `state_restricted_to` (lists, default empty), `gender_restricted_to` (default `any`).
+- **`Scheme`** — `scheme_id`, `scheme_name`, `scheme_category`, `issuing_authority`, `eligibility_rules`, `benefit_summary`, `benefit_value_estimate`, `required_documents`, `application_url`.
+  - **Scheme ID Validator**: `@field_validator("scheme_id")` ensures that `scheme_id` is strictly lowercase, has no spaces, and no underscores (only hyphens/slug allowed): `v != v.lower() or " " in v or "_" in v` raises a `ValueError`.
+  - **Required Documents Validator**: `@field_validator("required_documents")` ensures that it only contains keys present in `GOV_ID_KEYS`. Any invalid key raises a `ValueError`.
 
 ---
 
@@ -456,57 +454,49 @@ re-validates the whole file at startup and rejects duplicates.
 
 ### 9.1 Scheme loader — `core/scheme_loader.py`
 
-- `load_schemes(path=None)` — reads `data/schemes.json`, parses JSON, validates
-  every entry against `Scheme`, and rejects duplicate `scheme_id`s. Raises
-  `SchemeDataError` on a missing file, invalid JSON, a validation failure, or a
-  duplicate id — **fail loud at startup**.
+- `load_schemes(path=None)` — reads `data/schemes.json`, parses JSON, validates every entry against `Scheme`, and rejects duplicate `scheme_id`s. Raises `SchemeDataError` on a missing file, invalid JSON, a validation failure, or a duplicate id — **fail loud at startup**.
 - `get_schemes()` — an `lru_cache`d tuple of validated schemes.
 
 ### 9.2 Security wiring — `core/security.py`
 
-- `build_limiter(settings)` — a slowapi `Limiter` keyed by client IP, with the
-  configured default rate limit. Storage is **Redis** if `REDIS_URL` is set, else
-  **in-memory** (`memory://`) — zero external deps locally. `headers_enabled=False`
-  because slowapi's header injection needs a `Response` object, which would break
-  endpoints returning Pydantic models.
-- `configure_cors(app, settings)` — attaches `CORSMiddleware` with the **explicit
-  origin allowlist** (never `"*"`), credentials allowed, methods limited to
-  `GET/POST/OPTIONS`.
+- `build_limiter(settings)` — a slowapi `Limiter` keyed by client IP, with the configured default rate limit. Storage is **Redis** if `REDIS_URL` is set, else **in-memory** (`memory://`) — zero external deps locally. `headers_enabled=False` because slowapi's header injection needs a `Response` object, which would break endpoints returning Pydantic models.
+- `configure_cors(app, settings)` — attaches `CORSMiddleware` with the **explicit origin allowlist** (never `"*"`), credentials allowed, methods limited to `GET/POST/OPTIONS`.
 
 ### 9.3 Sanitization — `core/sanitization.py`
 
-`sanitize_text(value)` defensively strips markup from free text so nothing can
-carry an injection payload downstream (into logs, drafted letters, or a future UI):
+`sanitize_text(value)` defensively strips HTML and script markup from free text to prevent downstream injection vulnerabilities (into logs, drafted letters, or potential future HTML display):
 
-- Removes `<script>` and `<style>` blocks (including their contents).
-- Strips remaining HTML tags **repeatedly** to defeat nested/malformed constructs
-  like `<<b>>`.
-- Unescapes HTML entities (so `&lt;script&gt;` payloads don't survive), then
-  strips again.
-- Drops any stray angle brackets and collapses whitespace.
+- **Regex Definitions**:
+  - `_SCRIPT_BLOCK_RE = re.compile(r"<script\b[^>]*>.*?</script\s*>", re.IGNORECASE | re.DOTALL)`
+  - `_STYLE_BLOCK_RE = re.compile(r"<style\b[^>]*>.*?</style\s*>", re.IGNORECASE | re.DOTALL)`
+  - `_TAG_RE = re.compile(r"<[^>]*>")`
+  - `_WHITESPACE_RE = re.compile(r"\s+")`
+- **Sanitization Pipeline**:
+  1. Checks if the input is a string; if not, returns it unchanged.
+  2. Replaces `<script>...</script>` and `<style>...</style>` blocks (and all nested content) with empty strings.
+  3. **Recursive Tag Stripping**: Runs a `while prev != cleaned:` loop that repeatedly replaces matches of `_TAG_RE` with empty strings. This defeats bypass attempts utilizing nested tags like `<<b>>`.
+  4. **Entity Decoding**: Calls `html.unescape(cleaned)` to decode HTML entities (e.g. `&lt;script&gt;` back to `<script>`).
+  5. **Second recursive tag strip**: Re-runs the `while prev != cleaned:` loop to strip any HTML tags revealed by the entity unescaping process.
+  6. **Stray Angle Bracket Removal**: Explicitly removes all remaining `<` and `>` characters (`cleaned.replace("<", "").replace(">", "")`) to prevent malformed tags from surviving.
+  7. **Whitespace Collapse**: Collapses multiple whitespace characters to a single space using `_WHITESPACE_RE.sub(" ", cleaned).strip()`.
 
 ### 9.4 Request cache — `core/request_cache.py`
 
-`RequestCache` — a thread-safe, TTL + size-bounded (LRU-style) in-memory map of
-`request_id → CitizenProfile`. It bridges the `intake` call (which stores the
-normalized profile) and the later `draft` call (which reads it).
+`RequestCache` is a thread-safe, TTL + size-bounded in-memory cache mapping `request_id → CitizenProfile`. It bridges the stateless `POST /api/intake` call and the subsequent `GET /api/draft/{scheme_id}` request.
 
-- TTL default **1800 s (30 min)**, max size default **1000** entries.
-- `set` / `get` are guarded by a lock; `get` drops expired entries; eviction
-  purges expired entries first, then evicts the oldest to honor the size cap.
-- Uses `time.monotonic()` so it's immune to wall-clock changes.
-- **Intentionally ephemeral:** it does not survive a restart or span multiple
-  instances. Swapping in Redis/Postgres later is a drop-in change.
+- **Storage**: Uses `collections.OrderedDict` to store `(expires_at, profile)` tuples.
+- **Concurrency**: All read/write operations are synchronized using a `threading.Lock` instance.
+- **Eviction (`_evict_locked`)**:
+  1. Retrieves the current time using `time.monotonic()` (monotonic clock prevents issues from system wall-clock changes).
+  2. Iterates and purges all expired keys where `expires_at < now`.
+  3. Enforces the size limit (`max_size`, default `1000`) by executing `self._store.popitem(last=False)` (which pops the oldest entry in LRU order) until the size constraint is satisfied.
+- **TTL Lifecycle**: Defaults to 30 minutes (`1800` seconds). The cache is purely ephemeral and does not persist across application restarts or scale across multiple servers.
 
 ### 9.5 Logging — `core/logging_config.py`
 
-- `configure_logging(settings)` — idempotent structlog setup. JSON renderer in
-  production (`LOG_JSON=true`), pretty console renderer otherwise. Merges
-  contextvars (so `request_id` rides along), adds level + ISO timestamp.
-- **Logging policy (security):** log request *outcomes* and coarse counters with
-  the `request_id` — **never** the citizen's full profile in plaintext.
-- Sentry is initialized only if `SENTRY_DSN` is set, with `send_default_pii=False`.
-  `capture_exception()` is a safe no-op when Sentry is absent.
+- `configure_logging(settings)` — idempotent structlog setup. JSON renderer in production (`LOG_JSON=true`), pretty console renderer otherwise. Merges contextvars (so `request_id` rides along), adds level + ISO timestamp.
+- **Logging policy (security):** log request *outcomes* and coarse counters with the `request_id` — **never** the citizen's full profile in plaintext.
+- Sentry is initialized only if `SENTRY_DSN` is set, with `send_default_pii=False`. `capture_exception()` is a safe no-op when Sentry is absent.
 
 ---
 
@@ -516,18 +506,14 @@ normalized profile) and the later `draft` call (which reads it).
 
 A thin async wrapper around `google-genai`, used for **language generation only**.
 
-- Constructed at startup. It initializes the underlying client **only if**
-  `settings.llm_active` (i.e. `LLM_ENABLED` is true **and** a `GEMINI_API_KEY` is
-  present). A failed init is caught and logged; `available` becomes `False`.
-- `polish(prompt, fallback)` → `(text, used_llm)`:
-  - Tries the **primary** model, then the **fallback** model.
-  - Each attempt runs the blocking SDK call in a thread with an
-    `asyncio.wait_for` **timeout** (default 8 s).
-  - On timeout, API/network error, or empty response → returns the caller's
-    deterministic `fallback` text with `used_llm=False`.
-- **Guarantee:** no LLM failure ever propagates as an API error. Worst case, the
-  user gets accurate deterministic text and the response is marked
-  `partial_success`.
+- **Client Construction**: Initialized during startup. It instantiates the underlying client only if `settings.llm_active` (both `LLM_ENABLED` is true and `GEMINI_API_KEY` is present) evaluates to `True`.
+- **Initialization Safety**: Instantiation runs inside `_try_init_client()`, which imports `from google import genai` and builds `genai.Client(api_key=self._settings.gemini_api_key)`. Any exception (such as missing package or invalid format key) is caught, logged as a warning (`"gemini_init_failed"`), and `self._client` remains `None`.
+- **Liveness property**: `available` checks if `self._client` is not `None`.
+- **Thread offloading (`_generate_once`)**: The SDK's generation call is blocking. To prevent blocking the async event loop, the call is wrapped in a helper function `_call()` returning `client.models.generate_content(model=model, contents=prompt).text.strip()`, and executed in a separate worker thread using `asyncio.to_thread(_call)`.
+- **Timeout and Exception Safety**: The thread execution is wrapped in `asyncio.wait_for(..., timeout=settings.gemini_timeout_seconds)`.
+  - On `asyncio.TimeoutError`: logs warning `"gemini_timeout"` indicating which model timed out, and returns `None`.
+  - On any other `Exception` (such as API credentials error, quota issues, or network issues): logs warning `"gemini_error"` with the error traceback message, and returns `None`.
+- **Sequential Fallback (`polish`)**: Tries the primary model (`settings.gemini_model`), and if it returns `None`, tries the secondary fallback model (`settings.gemini_fallback_model`). If both fail, it returns the provided deterministic `fallback` text and sets `used_llm=False`.
 
 Default models: `gemini-2.0-flash` (primary), `gemini-1.5-flash` (fallback).
 
@@ -556,6 +542,10 @@ of truth. Loaded from environment variables (and a local `.env` in development).
 | `LOG_JSON` | `true` | JSON vs console logs |
 | `REQUEST_CACHE_TTL_SECONDS` | `1800` | profile cache TTL |
 | `REQUEST_CACHE_MAX_SIZE` | `1000` | profile cache capacity |
+| `SUPABASE_URL` | *(unset)* | Supabase project API URL |
+| `SUPABASE_SERVICE_KEY` | *(unset)* | Supabase Service Role secret key for admin bypass |
+| `SUPABASE_JWT_SECRET` | *(unset)* | Secret key used to decode client JWT access tokens |
+| `INTERNAL_API_SECRET` | *(unset)* | Secret string validating incoming Supabase Edge callbacks |
 
 Helper properties: `cors_origins` (parsed list), `is_production`, and `llm_active`
 (true only when `llm_enabled` **and** a key is present). A validator **rejects a
@@ -569,22 +559,57 @@ See `.env.example` for the full annotated template (names only, no values).
 
 The backend is designed for a system handling sensitive citizen data:
 
-1. **Strict input validation** — every field is typed, bounded, and enum-checked;
-   `extra="forbid"` rejects unknown fields; numeric fields reject string coercion.
+1. **Strict input validation** — every field is typed, bounded, and enum-checked; `extra="forbid"` rejects unknown fields; numeric fields reject string coercion.
 2. **CORS allowlist, never `*`** — enforced by both config default and a validator.
 3. **Per-IP rate limiting** (slowapi) — in-memory or Redis-backed.
 4. **No secrets in code** — everything sensitive comes from the environment.
-5. **Defensive sanitization** of free text — strips HTML/script from name/state/
-   district before it touches logs, drafts, or a UI.
-6. **PII-safe logging** — the full profile is never logged; only `request_id` and
-   coarse counters are. Sentry runs with `send_default_pii=False`.
-7. **Standard error shape everywhere** — no raw tracebacks leak to clients. All
-   failures return `{processing_status, error_message, error_code}`:
-   - `422` invalid input → `INVALID_INPUT`
-   - `429` rate limited → `AGENT_TIMEOUT`
-   - `404` unknown scheme / expired request_id → `INVALID_INPUT`
-   - `500` unhandled → `INTERNAL_ERROR` (full detail captured server-side only)
+5. **Defensive sanitization** of free text — strips HTML/script from name/state/district before it touches logs, drafts, or a UI.
+6. **PII-safe logging** — the full profile is never logged; only `request_id` and coarse counters are. Sentry runs with `send_default_pii=False`.
+7. **Standard error shape everywhere** — no raw tracebacks leak to clients. All failures return the standard payload `{processing_status: "error", error_message: str, error_code: str}` with corresponding HTTP status codes:
+   - **`422 Unprocessable Entity`** (invalid request parameters or missing fields):
+     ```json
+     {
+       "processing_status": "error",
+       "error_message": "Invalid input. Please check the submitted fields.",
+       "error_code": "INVALID_INPUT"
+     }
+     ```
+   - **`429 Too Many Requests`** (IP rate limit exceeded):
+     ```json
+     {
+       "processing_status": "error",
+       "error_message": "Rate limit exceeded. Please try again shortly.",
+       "error_code": "AGENT_TIMEOUT"
+     }
+     ```
+   - **`404 Not Found`** (unknown `scheme_id` in `/api/draft/{scheme_id}`):
+     ```json
+     {
+       "processing_status": "error",
+       "error_message": "Unknown scheme_id: {scheme_id}",
+       "error_code": "INVALID_INPUT"
+     }
+     ```
+   - **`404 Not Found`** (unknown or expired `request_id` in request cache lookup):
+     ```json
+     {
+       "processing_status": "error",
+       "error_message": "Unknown or expired request_id. Please submit the intake form again.",
+       "error_code": "INVALID_INPUT"
+     }
+     ```
+   - **`500 Internal Server Error`** (unhandled generic exception, logged server-side via structlog/Sentry):
+     ```json
+     {
+       "processing_status": "error",
+       "error_message": "An internal error occurred. Please try again later.",
+       "error_code": "INTERNAL_ERROR"
+     }
+     ```
 8. **Non-root container** — the Docker image runs as an unprivileged `app` user.
+9. **JWT Verification for User PII**: All Document Vault management endpoints enforce client JWT validation using Supabase authorization headers, ensuring users can only manage their own documents.
+10. **Role-Based Access Control (RBAC)**: Administrative endpoints check client JWT claims for the `"admin"` role and reject unauthorized writes with `403 Forbidden`.
+11. **Internal Webhook Signature Protection**: Deno Edge callbacks checking profile/scheme updates require a matching secret passed via the `X-Internal-Secret` custom header.
 
 ---
 
@@ -619,44 +644,107 @@ Submit a citizen profile; get ranked eligible schemes.
   "error_message": null
 }
 ```
+**Response `500`** (if pipeline processing fails):
+```json
+{
+  "processing_status": "error",
+  "error_message": "An internal error occurred while processing the request.",
+  "error_code": "INTERNAL_ERROR"
+}
+```
 
 ### `GET /api/draft/{scheme_id}?request_id=…`
 
-Generate a pre-filled application for one scheme, using the profile cached from the
-earlier intake call.
+Generate a pre-filled application for one scheme, using the profile cached from the earlier intake call.
 
-**Response `200`:** `DraftResponse` (letter text + required documents + next steps).
-**`404`** if the `scheme_id` is unknown or the `request_id` is unknown/expired.
+**Response `200`:** `DraftResponse`
+```json
+{
+  "scheme_id": "pm-kisan-001",
+  "drafted_application_text": "To: Department of Agriculture...\n...",
+  "required_documents": ["aadhaar", "income_certificate"],
+  "next_steps": [
+    "Visit the nearest Common Service Centre (CSC) or the official portal.",
+    "Submit the application for PM-KISAN Samman Nidhi with the attached documents.",
+    "Note your application reference number for tracking."
+  ]
+}
+```
+**Response `500`** (if drafting letter fails):
+```json
+{
+  "processing_status": "error",
+  "error_message": "An internal error occurred while drafting the application.",
+  "error_code": "INTERNAL_ERROR"
+}
+```
 
 ### `GET /api/health`
 
 **Response `200`:** `{"status": "ok", "agents_online": ["intake","eligibility","ranking","docgap","drafter"]}`.
+
+### `POST /api/internal/match-profile`
+Internal asynchronous callback route triggered by Supabase Edge Functions when a user inserts or activates a profile.
+*   **Security:** Requires header `X-Internal-Secret: <secret>`.
+*   **Response `200`:** `{"status": "success", "results_count": int}`
+*   **Response `401`:** Unauthorized on invalid/missing secret.
+
+### `POST /api/internal/match-scheme`
+Internal asynchronous callback route triggered by Supabase Edge Functions when a scheme's rules are updated. Takes pre-filtered candidate user IDs and recomputes matching results.
+*   **Security:** Requires header `X-Internal-Secret: <secret>`.
+*   **Response `200`:** `{"status": "success", "processed_users": int}`
+*   **Response `401`:** Unauthorized on invalid/missing secret.
+
+### `GET /api/schemes/search?query=…`
+Public search route to retrieve schemes using PostgreSQL Full-Text Search.
+*   **Response `200`:** List of matching schemes.
+
+### `POST /api/documents/upload`
+Upload a document (PDF/Image) to the user's private storage folder in Supabase (`citizen-documents` bucket). Extracts document metadata via OCRSpace (using the real external API in dev/prod, mocked as a test double in the pytest suite) and inserts a **pending** status record in the database.
+*   **Security:** Requires Bearer JWT header.
+*   **Response `200`:** Document verification details, pending OCR extraction results, and a short-lived **signed storage URL** (300s TTL).
+
+### `POST /api/documents/{doc_id}/confirm`
+Confirm or modify OCR data extraction. Upon confirmation, the document's verification status transitions to **verified**, and corresponding citizen profile attributes are dynamically updated in the database.
+*   **Security:** Requires Bearer JWT header.
+*   **Response `200`:** `{"status": "success", "message": "Document confirmed and profile updated."}`
+
+### `GET /api/documents`
+List all documents uploaded by the authenticated user. Includes short-lived signed storage URLs (300s TTL) for active documents.
+*   **Security:** Requires Bearer JWT header.
+*   **Response `200`:** List of user's active documents with status.
+
+### `POST /api/admin/schemes`
+Create a new welfare scheme.
+*   **Security:** Requires Bearer JWT header representing an administrator account. The check decodes the JWT and validates the `is_admin` claims inside `app_metadata` or `user_metadata`, falling back safely to checking if the authenticated email is exactly `admin@yojanasaathi.in`.
+*   **Response `200`:** Created scheme details.
 
 ---
 
 ## 14. Testing
 
 **Config:** `pytest.ini` (asyncio auto mode; tests under `tests/`).
-**Fixtures:** `tests/conftest.py` provides `VALID_PROFILE_DICT`, a complete
-contract-valid body that tests copy and mutate.
+**Fixtures:** `tests/conftest.py` provides `VALID_PROFILE_DICT`, a complete contract-valid body that tests copy and mutate.
 
-The suite (~1,200 lines) covers each agent in isolation plus end-to-end API flows:
+The suite contains **119 unit and integration tests** (spanning **1,200+ lines of code**) and covers each agent in isolation, Supabase security integrations, and end-to-end API flows:
 
 | Test file | Focus |
 |-----------|-------|
 | `test_intake_agent.py` | normalization, sanitization, empty-after-sanitize guard |
-| `test_eligibility_agent.py` | every rule check, boundary scoring, no-restriction semantics (largest file, ~424 lines) |
+| `test_eligibility_agent.py` | every rule check, boundary scoring, no-restriction semantics (largest file) |
 | `test_ranking_agent.py` | value tiering, combined score, deterministic tie-breaks |
 | `test_docgap_agent.py` | missing-document sets, canonical ordering |
 | `test_drafter_agent.py` | template contents, LLM polish + fallback |
 | `test_pipeline.py` | full orchestration, partial-success on LLM degradation |
 | `test_api_integration.py` | HTTP-level: validation `422`s, endpoints, error shapes |
+| `test_supabase_auth_and_documents.py` | JWT decoding validation, administrator role checks, Document Vault OCRSpace flow, and webhook secret validations |
 
 **Run the tests** (from the repo root so `Backend.<module>` imports resolve):
 
 ```bash
 cd D:/Yojana-Saathi
-python -m pytest Backend/tests -v
+# Run with virtual environment python executable
+Backend/.venv/Scripts/python -m pytest Backend/tests -v
 ```
 
 ---
@@ -706,3 +794,21 @@ The repo root `render.yaml` blueprint deploys this backend as a web service
 > The rule engine decides eligibility and is fully auditable; Gemini only makes the
 > words nicer and can vanish without breaking anything; the API shape never drifts;
 > and every failure returns a clean, PII-safe error instead of a traceback.
+
+---
+
+## 16. Supabase & Database Architecture
+
+We migrate from a stateless in-memory cache architecture to a stateful database structure utilizing **Supabase (PostgreSQL)**, guarded by Row-Level Security (RLS) and integrated with Deno Edge Functions.
+
+### 16.1 Database Schema
+The database layout is defined in [20260709000000_schema_setup.sql](file:///d:/Yojana-Saathi/supabase/migrations/20260709000000_schema_setup.sql):
+*   **`citizen_profiles`**: Holds individual demographic data. Enforces `is_current` boolean configuration (only 1 profile per user can be active at a time via a partial unique index). Secured via RLS ensuring users can only select or modify their own profiles.
+*   **`schemes`**: Holds welfare scheme specifications. Features a composite Full-Text Search (FTS) index combining `scheme_name` and `benefit_summary` for fast searching, exposed via `search_schemes` RPC.
+*   **`documents`**: Tracks user uploaded files. Integrates with the `document-vault` storage bucket. Features a foreign key check to `doc_type` lookup table.
+*   **`applications`**: Tracks user applied schemes. Enforces a unique constraint on `(user_id, scheme_id)` to prevent duplicate submissions.
+*   **`notifications`**: Stores generated alerts for matched schemes. Enforces unique notification constraints via a multi-column index on `(user_id, scheme_id, notification_type)` to avoid spamming the user dashboard.
+
+### 16.2 Edge Function Workflows
+*   **`on-profile-change`**: Whenever a `citizen_profiles` row is created or activated (`is_current = true`), this Edge Function triggers FastAPI `/api/internal/match-profile` to recalculate matching results.
+*   **`on-scheme-change`**: When a scheme's eligibility rules are updated, this Edge Function performs an in-database candidate search (pre-filtering by matching states, income caps, and allowed occupations) and forwards the narrow subset to FastAPI `/api/internal/match-scheme` to recompute eligibility scores.
