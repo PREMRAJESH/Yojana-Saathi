@@ -4,6 +4,23 @@ import Link from "next/link";
 
 type ToggleSetting = { id: string; label: string; description: string; enabled: boolean };
 
+function ToggleRow({ item, onToggle }: { item: ToggleSetting; onToggle: () => void }) {
+  return (
+    <div className="flex items-start justify-between py-4 border-b border-slate-100 last:border-0">
+      <div className="pr-6">
+        <div className="text-sm font-semibold text-navy-900">{item.label}</div>
+        <div className="text-xs text-slate-400 mt-0.5">{item.description}</div>
+      </div>
+      <button
+        onClick={onToggle}
+        className={`flex-shrink-0 w-11 h-6 rounded-full transition-colors duration-200 ${item.enabled ? "bg-orange-500" : "bg-slate-200"}`}
+      >
+        <span className={`block w-5 h-5 bg-white rounded-full shadow transition-transform duration-200`} style={{ transform: item.enabled ? "translateX(22px)" : "translateX(2px)" }} />
+      </button>
+    </div>
+  );
+}
+
 export default function Settings() {
   const [notifications, setNotifications] = useState<ToggleSetting[]>([
     { id: "new_scheme", label: "New Scheme Alerts", description: "Get notified when a new scheme matches your profile.", enabled: true },
@@ -23,21 +40,6 @@ export default function Settings() {
   const toggle = (list: ToggleSetting[], setList: React.Dispatch<React.SetStateAction<ToggleSetting[]>>, id: string) => {
     setList(list.map((s) => s.id === id ? { ...s, enabled: !s.enabled } : s));
   };
-
-  const ToggleRow = ({ item, onToggle }: { item: ToggleSetting; onToggle: () => void }) => (
-    <div className="flex items-start justify-between py-4 border-b border-slate-100 last:border-0">
-      <div className="pr-6">
-        <div className="text-sm font-semibold text-navy-900">{item.label}</div>
-        <div className="text-xs text-slate-400 mt-0.5">{item.description}</div>
-      </div>
-      <button
-        onClick={onToggle}
-        className={`flex-shrink-0 w-11 h-6 rounded-full transition-colors duration-200 ${item.enabled ? "bg-orange-500" : "bg-slate-200"}`}
-      >
-        <span className={`block w-5 h-5 bg-white rounded-full shadow transition-transform duration-200 ${item.enabled ? "translate-x-5.5" : "translate-x-0.5"}`} style={{ transform: item.enabled ? "translateX(22px)" : "translateX(2px)" }} />
-      </button>
-    </div>
-  );
 
   return (
     <div className="min-h-screen bg-slate-50">
