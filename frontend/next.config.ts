@@ -1,15 +1,23 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
-  webpack: (config, { dev, isServer }) => {
-    if (dev && !isServer) {
+  productionBrowserSourceMaps: false,
+  webpack: (config, { dev }) => {
+    if (dev) {
       config.watchOptions = {
-        ignored: ['**/node_modules', '**/.git', '**/.next'],
-      }
+        ...config.watchOptions,
+        ignored: [
+          "**/.git/**",
+          "**/.next/**",
+          "**/node_modules/**",
+          "../Backend/**",
+        ],
+      };
     }
+
     return config;
   },
-  turbopack: {}
+  turbopack: {},
 };
 
 export default nextConfig;

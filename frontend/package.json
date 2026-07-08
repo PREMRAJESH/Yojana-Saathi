@@ -3,8 +3,10 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev": "next dev --webpack",
-    "build": "next build",
+    "dev": "node --max-old-space-size=1536 ./node_modules/next/dist/bin/next dev --webpack --disable-source-maps",
+    "dev:turbo": "next dev --turbopack",
+    "dev:low-memory": "node --max-old-space-size=1024 ./node_modules/next/dist/bin/next dev --webpack --disable-source-maps",
+    "build": "node --max-old-space-size=2048 ./node_modules/next/dist/bin/next build --webpack",
     "start": "next start",
     "lint": "eslint"
   },
