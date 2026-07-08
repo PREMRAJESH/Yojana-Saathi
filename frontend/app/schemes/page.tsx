@@ -142,75 +142,96 @@ export default function Schemes() {
             </div>
           </div>
 
-          {/* Right Graphic — full SVG scene */}
+          {/* Right Graphic — full polished SVG */}
           <div className="w-full lg:w-1/2 relative h-80 lg:h-[420px] flex-shrink-0">
-            <svg viewBox="0 0 560 420" fill="none" xmlns="http://www.w3.org/2000/svg" className="w-full h-full">
+            <svg viewBox="0 0 600 400" fill="none" xmlns="http://www.w3.org/2000/svg" className="w-full h-full">
+              <defs>
+                <filter id="tile-sh" x="-30%" y="-30%" width="160%" height="160%">
+                  <feDropShadow dx="0" dy="2" stdDeviation="5" floodColor="#9A7060" floodOpacity="0.13"/>
+                </filter>
+                <pattern id="dotgrid" x="0" y="0" width="14" height="14" patternUnits="userSpaceOnUse">
+                  <circle cx="7" cy="7" r="2" fill="#C8AE9E"/>
+                </pattern>
+              </defs>
 
-              {/* ── Organic wave blob background ── */}
-              <path d="M 540 10 C 560 60 565 140 540 210 C 515 285 460 340 390 375 C 320 408 230 415 170 390 C 110 365 90 310 120 260 C 150 210 215 195 240 150 C 265 105 240 50 285 25 C 330 0 400 -10 450 5 Z" fill="#FEF0E6"/>
+              {/* ── Organic blob (right-center area, NOT edge-to-edge) ── */}
+              <path d="M 195 35 C 178 0 290 -12 400 12 C 510 36 592 100 590 195 C 588 290 518 368 412 378 C 306 388 196 342 183 268 C 170 194 212 70 195 35 Z" fill="#FEF2EA"/>
+
+              {/* ── Dot grid clusters ── */}
+              <rect x="10" y="10" width="70" height="56" fill="url(#dotgrid)" opacity="0.45"/>
+              <rect x="10" y="326" width="56" height="60" fill="url(#dotgrid)" opacity="0.45"/>
 
               {/* ── Wave decoration (bottom-right) ── */}
-              <path d="M 360 390 Q 390 375 420 390 Q 450 405 480 390 Q 510 375 540 390" stroke="#E8C9A8" strokeWidth="2.5" strokeLinecap="round" fill="none"/>
-              <path d="M 370 405 Q 400 390 430 405 Q 460 420 490 405" stroke="#E8C9A8" strokeWidth="2" strokeLinecap="round" fill="none"/>
+              <path d="M 415 355 Q 442 341 469 355 Q 496 369 523 355 Q 550 341 577 355" stroke="#D0AC92" strokeWidth="2.5" strokeLinecap="round"/>
+              <path d="M 425 371 Q 452 357 479 371 Q 506 385 533 371" stroke="#D0AC92" strokeWidth="2" strokeLinecap="round"/>
+              <path d="M 435 386 Q 459 373 483 386 Q 507 399 531 386" stroke="#D0AC92" strokeWidth="1.5" strokeLinecap="round" opacity="0.6"/>
 
-              {/* ── Dotted concentric arcs around search circle (center ~330,200) ── */}
-              <circle cx="330" cy="200" r="80"  stroke="#D9BFA8" strokeWidth="1.5" strokeDasharray="5 8" fill="none"/>
-              <circle cx="330" cy="200" r="138" stroke="#D9BFA8" strokeWidth="1.2" strokeDasharray="4 10" fill="none"/>
-              <circle cx="330" cy="200" r="196" stroke="#D9BFA8" strokeWidth="1"   strokeDasharray="3 12" fill="none"/>
+              {/* ── Dotted rings centred at (305, 190) ── */}
+              <circle cx="305" cy="190" r="110" stroke="#C5AA96" strokeWidth="1.5" strokeDasharray="5 8" fill="none"/>
+              <circle cx="305" cy="190" r="175" stroke="#C5AA96" strokeWidth="1.2" strokeDasharray="4 10" fill="none"/>
 
-              {/* ── Central large search circle ── */}
-              <circle cx="330" cy="200" r="62" fill="#1B2B4B"/>
-              {/* Search icon */}
-              <circle cx="323" cy="192" r="20" stroke="white" strokeWidth="5" fill="none"/>
-              <line x1="338" y1="207" x2="352" y2="221" stroke="white" strokeWidth="5" strokeLinecap="round"/>
+              {/* ── Clockwise arrow markers on rings ── */}
+              <polygon points="400,73 409,65 411,78" fill="#BFA080" opacity="0.75"/>
+              <polygon points="208,275 200,265 214,263" fill="#BFA080" opacity="0.75"/>
 
-              {/* ── Flat SVG category icons ── */}
+              {/* ── Central search circle ── */}
+              <circle cx="305" cy="190" r="68" fill="#1B2B4B"/>
+              <circle cx="293" cy="177" r="24" stroke="white" strokeWidth="6.5" fill="none"/>
+              <line x1="310" y1="194" x2="328" y2="212" stroke="white" strokeWidth="6.5" strokeLinecap="round"/>
 
-              {/* Education — orange graduation cap — top center */}
-              <g transform="translate(300, 60)">
-                <rect width="48" height="48" rx="12" fill="#FEF0E6"/>
-                <polygon points="24,10 40,19 24,28 8,19" fill="#F5842B"/>
-                <path d="M16 23 L16 33 Q24 38 32 33 L32 23" fill="#F5842B"/>
-                <rect x="38" y="18" width="3" height="10" rx="1.5" fill="#F5842B"/>
+              {/* ── EDUCATION: orange graduation cap — top ── */}
+              <g transform="translate(252, 33)" filter="url(#tile-sh)">
+                <rect width="52" height="52" rx="14" fill="white"/>
+                <polygon points="26,11 44,21 26,31 8,21" fill="#F5842B"/>
+                <path d="M14 25 L14 35 Q26 42 38 35 L38 25" fill="#F5842B"/>
+                <rect x="42" y="21" width="3.5" height="13" rx="1.75" fill="#F5842B"/>
+                <circle cx="43.75" cy="35" r="3.5" fill="#F5842B"/>
               </g>
 
-              {/* Housing — blue house — top right */}
-              <g transform="translate(440, 80)">
-                <rect width="44" height="44" rx="11" fill="#EFF6FF"/>
-                <polygon points="22,8 38,20 38,36 6,36 6,20" fill="#3B82F6"/>
-                <polygon points="22,8 6,20 38,20" fill="#60A5FA"/>
-                <rect x="17" y="26" width="10" height="10" rx="2" fill="white"/>
+              {/* ── HOUSING: blue house — left ── */}
+              <g transform="translate(70, 118)" filter="url(#tile-sh)">
+                <rect width="46" height="46" rx="13" fill="white"/>
+                <polygon points="23,8 40,20 40,38 6,38 6,20" fill="#DBEAFE"/>
+                <polygon points="23,8 6,20 40,20" fill="#3B82F6"/>
+                <rect x="17" y="24" width="12" height="14" rx="2" fill="white"/>
+                <rect x="17" y="24" width="12" height="14" rx="2" fill="none" stroke="#93C5FD" strokeWidth="1.2"/>
               </g>
 
-              {/* Business — purple briefcase — far right */}
-              <g transform="translate(490, 170)">
-                <rect width="44" height="44" rx="11" fill="#F5F3FF"/>
-                <rect x="9" y="18" width="26" height="18" rx="3" fill="#7C3AED"/>
-                <rect x="16" y="14" width="12" height="6" rx="2" fill="#7C3AED"/>
-                <line x1="9" y1="26" x2="35" y2="26" stroke="#C4B5FD" strokeWidth="2"/>
-                <line x1="22" y1="18" x2="22" y2="36" stroke="#C4B5FD" strokeWidth="2"/>
+              {/* ── BRIEFCASE: purple — top-right ── */}
+              <g transform="translate(447, 46)" filter="url(#tile-sh)">
+                <rect width="52" height="52" rx="14" fill="white"/>
+                <rect x="8" y="21" width="36" height="23" rx="5" fill="#8B5CF6"/>
+                <path d="M19 21 L19 16 Q19 11 24 11 L28 11 Q33 11 33 16 L33 21" stroke="#7C3AED" strokeWidth="2.5" fill="none" strokeLinejoin="round"/>
+                <line x1="8" y1="31" x2="44" y2="31" stroke="#DDD6FE" strokeWidth="2"/>
+                <rect x="23" y="27" width="6" height="8" rx="1.5" fill="#DDD6FE"/>
               </g>
 
-              {/* Healthcare — red heart — left */}
-              <g transform="translate(148, 180)">
-                <rect width="44" height="44" rx="11" fill="#FFF1F2"/>
-                <path d="M22 34 C22 34 8 25 8 16 C8 11 12 8 16 8 C19 8 22 11 22 11 C22 11 25 8 28 8 C32 8 36 11 36 16 C36 25 22 34 22 34Z" fill="#F43F5E"/>
+              {/* ── HEALTHCARE: red heart + ECG line — left-lower ── */}
+              <g transform="translate(68, 224)" filter="url(#tile-sh)">
+                <rect width="46" height="46" rx="13" fill="white"/>
+                <path d="M23 38 C23 38 6 27 6 15 C6 9.5 10.5 6 15.5 6 C19.5 6 23 10 23 10 C23 10 26.5 6 30.5 6 C35.5 6 40 9.5 40 15 C40 27 23 38 23 38Z" fill="#F43F5E"/>
+                <path d="M10 23 L14 23 L17 17 L21 30 L24 20 L27 23 L36 23" stroke="white" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" fill="none"/>
               </g>
 
-              {/* Social Welfare — people — right */}
-              <g transform="translate(482, 270)">
-                <rect width="44" height="44" rx="11" fill="#FFFBEB"/>
-                <circle cx="15" cy="16" r="6" fill="#F59E0B"/>
-                <path d="M5 38 Q5 27 15 27 Q25 27 25 38" fill="#F59E0B"/>
-                <circle cx="29" cy="16" r="6" fill="#FBBF24"/>
-                <path d="M19 38 Q19 27 29 27 Q39 27 39 38" fill="#FBBF24"/>
+              {/* ── SOCIAL WELFARE: yellow people — right ── */}
+              <g transform="translate(458, 228)" filter="url(#tile-sh)">
+                <rect width="52" height="52" rx="14" fill="white"/>
+                <circle cx="18" cy="17" r="7.5" fill="#F59E0B"/>
+                <path d="M4 49 Q4 32 18 32 Q32 32 32 49" fill="#F59E0B"/>
+                <circle cx="34" cy="17" r="7.5" fill="#FBBF24"/>
+                <path d="M20 49 Q20 32 34 32 Q48 32 48 49" fill="#FBBF24"/>
               </g>
 
-              {/* Agriculture — leaf — bottom */}
-              <g transform="translate(280, 330)">
-                <rect width="44" height="44" rx="11" fill="#F0FDF4"/>
-                <path d="M22 36 C22 36 22 22 22 18 C22 12 14 8 10 10 C8 18 12 28 22 36Z" fill="#22C55E"/>
-                <path d="M22 36 C22 36 22 22 22 18 C22 12 30 8 34 10 C36 18 32 28 22 36Z" fill="#16A34A"/>
+              {/* ── AGRICULTURE: green leaf — bottom ── */}
+              <g transform="translate(254, 308)" filter="url(#tile-sh)">
+                <rect width="50" height="50" rx="13" fill="white"/>
+                <path d="M25 43 C25 43 8 30 8 18 C8 8 16 5 25 5 C25 5 25 22 25 43Z" fill="#4ADE80"/>
+                <path d="M25 43 C25 43 42 30 42 18 C42 8 34 5 25 5 C25 5 25 22 25 43Z" fill="#22C55E"/>
+                <line x1="25" y1="8" x2="25" y2="43" stroke="#15803D" strokeWidth="1.5" opacity="0.4"/>
+                <path d="M25 18 Q18 22 14 26" stroke="#15803D" strokeWidth="1.2" opacity="0.4" fill="none"/>
+                <path d="M25 18 Q32 22 36 26" stroke="#15803D" strokeWidth="1.2" opacity="0.4" fill="none"/>
+                <path d="M25 28 Q19 32 15 36" stroke="#15803D" strokeWidth="1" opacity="0.3" fill="none"/>
+                <path d="M25 28 Q31 32 35 36" stroke="#15803D" strokeWidth="1" opacity="0.3" fill="none"/>
               </g>
 
             </svg>
