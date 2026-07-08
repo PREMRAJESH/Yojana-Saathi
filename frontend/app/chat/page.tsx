@@ -3,7 +3,7 @@ import { useState, useRef, useEffect } from "react";
 import Link from "next/link";
 
 type Message = {
-  id: number;
+  id: string;
   role: "user" | "assistant";
   text: string;
   timestamp: Date;
@@ -16,43 +16,54 @@ const suggestedQuestions = [
   "Are there any schemes for women entrepreneurs?",
 ];
 
-const initialMessages: Message[] = [
-  {
-    id: 1,
-    role: "assistant",
-    text: "Namaste! 🙏 I'm your Yojana Saarthi AI assistant. I can help you:\n\n• Find schemes you qualify for\n• Explain eligibility criteria\n• Tell you which documents you need\n• Draft application summaries\n\nWhat would you like to know?",
-    timestamp: new Date(),
-  },
-];
+function createInitialMessages(): Message[] {
+  return [
+    {
+      id: crypto.randomUUID(),
+      role: "assistant",
+      text: "Namaste! 🙏 I'm your Yojana Saarthi AI assistant. I can help you:\n\n• Find schemes you qualify for\n• Explain eligibility criteria\n• Tell you which documents you need\n• Draft application summaries\n\nWhat would you like to know?",
+      timestamp: new Date(),
+    },
+  ];
+}
 
 export default function Chat() {
-  const [messages, setMessages] = useState<Message[]>(initialMessages);
+  const [messages, setMessages] = useState<Message[]>(createInitialMessages);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
+  const replyTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
 
-  const sendMessage = async (text: string) => {
+  useEffect(() => {
+    return () => {
+      if (replyTimerRef.current) clearTimeout(replyTimerRef.current);
+    };
+  }, []);
+
+  const sendMessage = (text: string) => {
     if (!text.trim() || loading) return;
-    const userMsg: Message = { id: Date.now(), role: "user", text, timestamp: new Date() };
+    const userMsg: Message = { id: crypto.randomUUID(), role: "user", text, timestamp: new Date() };
     setMessages((prev) => [...prev, userMsg]);
     setInput("");
     setLoading(true);
 
     // Simulate AI response (TODO: wire to backend /api/chat)
-    await new Promise((r) => setTimeout(r, 1200));
-    const aiMsg: Message = {
-      id: Date.now() + 1,
-      role: "assistant",
+    replyTimerRef.current = setTimeout(() => {
+      const aiMsg: Message = {
+        id: crypto.randomUUID(),
+        role: "assistant",
       text: "Based on your profile, I found relevant information for your query. Here's a summary:\n\n**PM-KISAN Samman Nidhi** provides ₹6,000/year to eligible farmer families. You meet the landholding requirement (1.5 acres) and income criteria.\n\n📋 **Documents you have:** Aadhaar, Ration Card, Caste Certificate\n⚠️ **Missing:** Income Certificate\n\nWould you like me to show you how to get an income certificate, or draft an application?",
-      timestamp: new Date(),
-    };
-    setMessages((prev) => [...prev, aiMsg]);
-    setLoading(false);
+        timestamp: new Date(),
+      };
+      setMessages((prev) => [...prev, aiMsg]);
+      setLoading(false);
+      replyTimerRef.current = null;
+    }, 1200);
   };
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
