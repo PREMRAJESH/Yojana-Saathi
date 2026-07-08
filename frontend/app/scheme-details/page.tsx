@@ -1,6 +1,6 @@
 "use client";
 import { useSearchParams } from "next/navigation";
-import { useEffect, useState, Suspense } from "react";
+import { useMemo, useState, Suspense } from "react";
 import Link from "next/link";
 import { fetchDraft } from "../lib/api-client";
 import { GOV_ID_LABELS, type GovIdKey, type SchemeResult, SCHEME_CATEGORY_OPTIONS } from "../lib/api-types";
@@ -8,28 +8,31 @@ import { GOV_ID_LABELS, type GovIdKey, type SchemeResult, SCHEME_CATEGORY_OPTION
 const getCategoryLabel = (cat: string) =>
   SCHEME_CATEGORY_OPTIONS.find(o => o.value === cat)?.label ?? cat;
 
+function getCachedScheme(schemeId: string): SchemeResult | null {
+  if (!schemeId || typeof window === "undefined") return null;
+
+  const raw = sessionStorage.getItem("intake_result");
+  if (!raw) return null;
+
+  try {
+    const data = JSON.parse(raw);
+    return data.eligible_schemes?.find((s: SchemeResult) => s.scheme_id === schemeId) ?? null;
+  } catch {
+    return null;
+  }
+}
+
 function SchemeDetailsContent() {
   const params = useSearchParams();
   const schemeId = params.get("id") ?? "";
   const requestId = params.get("request_id") ?? "";
 
   // Try to get the scheme from the cached intake result
-  const [scheme, setScheme] = useState<SchemeResult | null>(null);
+  const scheme = useMemo(() => getCachedScheme(schemeId), [schemeId]);
   const [draft, setDraft] = useState<string | null>(null);
   const [nextSteps, setNextSteps] = useState<string[]>([]);
   const [draftLoading, setDraftLoading] = useState(false);
   const [draftError, setDraftError] = useState<string | null>(null);
-
-  useEffect(() => {
-    const raw = sessionStorage.getItem("intake_result");
-    if (raw && schemeId) {
-      try {
-        const data = JSON.parse(raw);
-        const found = data.eligible_schemes?.find((s: SchemeResult) => s.scheme_id === schemeId);
-        if (found) setScheme(found);
-      } catch { /* ignore */ }
-    }
-  }, [schemeId]);
 
   const handleGetDraft = async () => {
     if (!schemeId || !requestId) {

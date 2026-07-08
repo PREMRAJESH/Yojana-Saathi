@@ -1,6 +1,6 @@
 "use client";
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { type IntakeResponse, type SchemeResult, GOV_ID_LABELS, type GovIdKey, SCHEME_CATEGORY_OPTIONS } from "../lib/api-types";
 
 /** Map backend scheme_category to a display colour */
@@ -44,39 +44,22 @@ const BADGE = (cat: string) => {
 const getCategoryLabel = (cat: string) =>
   SCHEME_CATEGORY_OPTIONS.find(o => o.value === cat)?.label ?? cat;
 
-import { supabase } from "../lib/supabaseClient";
+function getStoredIntakeResult(): IntakeResponse | null {
+  if (typeof window === "undefined") return null;
+
+  const raw = sessionStorage.getItem("intake_result");
+  if (!raw) return null;
+
+  try {
+    return JSON.parse(raw) as IntakeResponse;
+  } catch {
+    return null;
+  }
+}
 
 export default function Dashboard() {
-  const [data, setData] = useState<IntakeResponse | null>(null);
+  const [data] = useState<IntakeResponse | null>(getStoredIntakeResult);
   const [activeTab, setActiveTab] = useState<"schemes" | "docs">("schemes");
-
-  useEffect(() => {
-    async function loadData() {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (user) {
-        const { data: history, error } = await supabase
-          .from("eligibility_history")
-          .select("results")
-          .eq("user_id", user.id)
-          .order("created_at", { ascending: false })
-          .limit(1)
-          .single();
-
-        if (history && history.results) {
-          setData(history.results as IntakeResponse);
-          sessionStorage.setItem("intake_result", JSON.stringify(history.results));
-          return;
-        }
-      }
-
-      // Fallback to sessionStorage
-      const raw = sessionStorage.getItem("intake_result");
-      if (raw) {
-        try { setData(JSON.parse(raw) as IntakeResponse); } catch { /* ignore */ }
-      }
-    }
-    loadData();
-  }, []);
 
   // Collect all unique missing documents across eligible schemes
   const allMissingDocs = data
