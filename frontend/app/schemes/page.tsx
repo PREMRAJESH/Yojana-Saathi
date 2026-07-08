@@ -92,7 +92,7 @@ export default function Schemes() {
       <header className="bg-white border-b border-slate-100 sticky top-0 z-50">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
           <Link href="/" className="flex items-center gap-2">
-            <Image src="/media/logo.png" alt="Yojana Saarthi" width={32} height={32} />
+            <Image src="/media/logo.png" alt="Yojana Saarthi" width={32} height={32} unoptimized />
             <span className="font-bold text-navy-900 text-lg">Yojana Saarthi</span>
           </Link>
           <nav className="hidden md:flex items-center gap-6 text-sm font-medium text-slate-600">
@@ -143,36 +143,41 @@ export default function Schemes() {
           </div>
 
           {/* Right Graphic */}
-          <div className="w-full lg:w-1/2 flex justify-center relative h-64 lg:h-80">
-            {/* Soft background blob */}
-            <div className="absolute inset-0 bg-orange-50 rounded-3xl opacity-60" />
+          <div className="w-full lg:w-1/2 flex justify-center relative h-72 lg:h-96">
+            {/* SVG organic blob + dotted concentric circles */}
+            <svg className="absolute inset-0 w-full h-full" viewBox="0 0 520 400" fill="none" xmlns="http://www.w3.org/2000/svg">
+              {/* Organic peach blob */}
+              <path d="M430 55 C495 110 510 210 465 295 C420 375 305 408 200 388 C95 368 30 285 50 178 C70 72 160 15 265 8 C350 2 385 18 430 55Z" fill="#FFF0E6" />
+              {/* Dotted concentric circles from center ~(260,200) */}
+              <circle cx="260" cy="200" r="75" stroke="#D6C4B0" strokeWidth="1.5" strokeDasharray="5 7" fill="none" />
+              <circle cx="260" cy="200" r="130" stroke="#D6C4B0" strokeWidth="1.2" strokeDasharray="4 9" fill="none" />
+              <circle cx="260" cy="200" r="185" stroke="#D6C4B0" strokeWidth="1" strokeDasharray="3 11" fill="none" />
+            </svg>
+
             {/* Central search circle */}
-            <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-24 h-24 bg-navy-900 rounded-full flex items-center justify-center shadow-2xl z-10">
-              <svg className="w-10 h-10 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-28 h-28 bg-navy-900 rounded-full flex items-center justify-center shadow-2xl z-10">
+              <svg className="w-12 h-12 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" />
               </svg>
             </div>
-            {/* Floating category icons */}
+
+            {/* Floating category icons - larger, positioned like reference */}
             {[
-              { icon: "🎓", top: "10%", left: "15%", bg: "bg-orange-100" },
-              { icon: "🏠", top: "8%", left: "60%", bg: "bg-blue-100" },
-              { icon: "❤️", top: "55%", left: "5%", bg: "bg-red-100" },
-              { icon: "💼", top: "15%", right: "8%", bg: "bg-purple-100" },
-              { icon: "👥", top: "55%", right: "10%", bg: "bg-yellow-100" },
-              { icon: "🌿", bottom: "12%", left: "35%", bg: "bg-green-100" },
+              { icon: "🎓", top: "4%",  left: "36%", bg: "bg-orange-100" },
+              { icon: "🏠", top: "8%",  right: "18%", bg: "bg-blue-100" },
+              { icon: "❤️", top: "52%", left: "4%",  bg: "bg-red-100" },
+              { icon: "💼", top: "10%", right: "4%",  bg: "bg-purple-100" },
+              { icon: "👥", top: "50%", right: "6%",  bg: "bg-yellow-100" },
+              { icon: "🌿", bottom: "8%", left: "30%", bg: "bg-green-100" },
             ].map((item, i) => (
               <div
                 key={i}
-                className={`absolute ${item.bg} w-12 h-12 rounded-2xl flex items-center justify-center text-xl shadow-sm border border-white z-10`}
-                style={{ top: item.top, left: item.left, right: item.right, bottom: item.bottom }}
+                className={`absolute ${item.bg} w-14 h-14 rounded-2xl flex items-center justify-center text-2xl shadow-md border border-white z-10`}
+                style={{ top: item.top, left: item.left, right: (item as {right?: string}).right, bottom: (item as {bottom?: string}).bottom }}
               >
                 {item.icon}
               </div>
             ))}
-            {/* Dotted connecting lines (decorative) */}
-            <div className="absolute inset-0 opacity-10 pointer-events-none z-0"
-              style={{ backgroundImage: "radial-gradient(circle, #94a3b8 1px, transparent 1px)", backgroundSize: "20px 20px" }}
-            />
           </div>
         </div>
       </section>

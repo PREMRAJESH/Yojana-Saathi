@@ -28,7 +28,7 @@ export default function Home() {
         <div className="container mx-auto px-6 lg:px-8 max-w-7xl flex items-center justify-between">
           {/* Logo */}
           <Link className="flex items-center gap-2 group" href="/">
-            <Image src="/media/logo.png" alt="Yojana Saarthi Logo" width={36} height={36} className="group-hover:scale-105 transition-transform" />
+            <Image src="/media/logo.png" alt="Yojana Saarthi Logo" width={36} height={36} unoptimized className="group-hover:scale-105 transition-transform" />
             <span className="text-xl font-bold tracking-tight text-navy-900">Yojana Saarthi</span>
           </Link>
           {/* Desktop Nav */}
@@ -265,7 +265,7 @@ export default function Home() {
             {/* Brand Col */}
             <div className="md:col-span-1">
               <Link className="flex items-center gap-2 mb-4" href="/">
-                <Image src="/media/logo.png" alt="Yojana Saarthi Logo" width={28} height={28} />
+                <Image src="/media/logo.png" alt="Yojana Saarthi Logo" width={28} height={28} unoptimized />
                 <span className="text-xl font-bold tracking-tight">Yojana Saarthi</span>
               </Link>
               <p className="text-gray-400 text-sm leading-relaxed">
