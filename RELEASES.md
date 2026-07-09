@@ -10,7 +10,36 @@ The accidental `v1.0.0` release should not be used. The project is better repres
 
 ---
 
-## v0.4.1 - Stability, Render Hygiene, and Dependency Audit Hardening
+## v0.4.2 — Open-Source Governance and Community Readiness
+
+**Release date:** 2026-07-09  
+**Type:** Patch release  
+**Target commit:** `b287a80`
+
+### Description
+
+This release establishes the open-source governance foundation for YojanaSaathi. It adds a security policy, code of conduct, contribution guide, professional issue templates, release notes, and corrected pre-1.0 version tags — everything an external contributor or potential partner needs to evaluate and participate in the project.
+
+### Highlights
+
+- Added `SECURITY.md` with responsible vulnerability disclosure policy, security scope, and data handling principles.
+- Added `CODE_OF_CONDUCT.md` adapted for public-interest, citizen-data context with clear enforcement and reporting guidance.
+- Added `CONTRIBUTING.md` with development setup, branching strategy, commit conventions, code standards, and PR workflow.
+- Replaced placeholder issue templates with 8 professional, structured templates:
+  - Bug Report, Feature Request, Agent Behavior Report, API Contract Change, Integration Blocker, Task Handoff, Documentation Request, Security Hardening.
+- Added `config.yml` to disable blank issues and route vulnerability reports to private disclosure.
+- Linked README navigation to the project wiki and contribution guide.
+- Added `RELEASES.md` with professional pre-1.0 versioned release notes.
+- Cleaned stale `SRS.md` and `API_CONTRACT.md` references from codebase.
+- Removed mistaken `v1.0.0` tag and created corrected `v0.x` annotated tag series.
+
+### Why It Matters
+
+Open-source credibility requires more than code. This release signals that YojanaSaathi takes security, community standards, and contributor experience seriously — making the project ready for external contributors, hackathon judges, and potential institutional partners.
+
+---
+
+## v0.4.1 — Stability, Render Hygiene, and Dependency Audit Hardening
 
 **Release date:** 2026-07-09  
 **Type:** Patch release  
