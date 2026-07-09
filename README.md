@@ -6,7 +6,6 @@
 
 An AI-assisted eligibility engine that turns a single citizen profile into a ranked list of the exact Indian government schemes a person qualifies for — with the missing documents, benefit value, and a pre-filled application draft for each one.
 
-[![Live Demo](https://img.shields.io/badge/Live-Demo-brightgreen?style=for-the-badge&logo=vercel)](https://yojanasaathi.in)
 [![Wiki](https://img.shields.io/badge/Project-Wiki-blue?style=for-the-badge&logo=github)](https://github.com/Yojana-Saathi/Yojana-Saathi/wiki)
 [![Discussions](https://img.shields.io/badge/Discussions-Active-blueviolet?style=for-the-badge&logo=github)](https://github.com/Yojana-Saathi/Yojana-Saathi/discussions)
 
@@ -23,7 +22,7 @@ An AI-assisted eligibility engine that turns a single citizen profile into a ran
 [![GitHub contributors](https://img.shields.io/github/contributors/Yojana-Saathi/Yojana-Saathi)](https://github.com/Yojana-Saathi/Yojana-Saathi/graphs/contributors)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](#-license)
 
-[**Problem**](#-the-problem) · [**How it works**](#-how-it-works) · [**Screenshots**](#-screenshots--demo) · [**Quickstart**](#-quickstart) · [**API**](#-api-reference) · [**Architecture**](#-architecture) · [**Wiki**](https://github.com/Yojana-Saathi/Yojana-Saathi/wiki) · [**Discussions**](https://github.com/Yojana-Saathi/Yojana-Saathi/discussions) · [**Contribute**](CONTRIBUTING.md) · [**Deploy**](#-deployment)
+[**Problem**](#-the-problem) · [**How it works**](#-how-it-works) · [**Quickstart**](#-quickstart) · [**API**](#-api-reference) · [**Architecture**](#-architecture) · [**Wiki**](https://github.com/Yojana-Saathi/Yojana-Saathi/wiki) · [**Discussions**](https://github.com/Yojana-Saathi/Yojana-Saathi/discussions) · [**Contribute**](CONTRIBUTING.md) · [**Deploy**](#-deployment)
 
 </div>
 
@@ -69,17 +68,6 @@ Behind the scenes, when profile indicators or schemes change, an internal pipeli
 
 > ### 🔒 The LLM never decides eligibility.
 > This is the core design principle. An LLM is **never** asked *"is this person eligible?"* — that judgment touches real legal entitlements and must be reproducible and auditable. Gemini is used **only** to make benefit summaries and application drafts read more naturally, and **every** LLM call has a timeout, a fallback model, and graceful degradation to deterministic template text on any failure. The system runs fully correctly with **no API key at all.**
-
----
-
-## 🖼️ Screenshots & Demo
-
-> [!NOTE]
-> *UI screenshots of the dashboard, multi-step intake form, and scheme detail page will be placed here. Refer to the issues list or contact the maintainers to provide updated visual assets.*
-
-| Onboarding Intake | User Dashboard | Scheme Details |
-|---|---|---|
-| *[Intake Form Placeholder]* | *[Dashboard Overview Placeholder]* | *[Scheme Details Placeholder]* |
 
 ---
 
