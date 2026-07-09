@@ -15,12 +15,15 @@ An AI-assisted eligibility engine that turns a single citizen profile into a ran
 [![Next.js](https://img.shields.io/badge/Next.js-16.2-000000?logo=next.js&logoColor=white)](https://nextjs.org/)
 [![Supabase](https://img.shields.io/badge/Supabase-2.110-3ECF8E?logo=supabase&logoColor=white)](https://supabase.com/)
 [![Deploy on Render](https://img.shields.io/badge/Deploy-Render-46E3B7?logo=render&logoColor=white)](https://render.com/)
+
 [![Security Policy](https://img.shields.io/badge/Security-Policy-brightgreen.svg)](SECURITY.md)
 [![Code of Conduct](https://img.shields.io/badge/Code_of-Conduct-blue.svg)](CODE_OF_CONDUCT.md)
+[![Open Source](https://img.shields.io/badge/Open%20Source-Yes-brightgreen)](https://github.com/Yojana-Saathi/Yojana-Saathi)
+[![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](CONTRIBUTING.md)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](#-license)
 [![GitHub issues](https://img.shields.io/github/issues/Yojana-Saathi/Yojana-Saathi)](https://github.com/Yojana-Saathi/Yojana-Saathi/issues)
 [![GitHub last commit](https://img.shields.io/github/last-commit/Yojana-Saathi/Yojana-Saathi)](https://github.com/Yojana-Saathi/Yojana-Saathi/commits/main)
 [![GitHub contributors](https://img.shields.io/github/contributors/Yojana-Saathi/Yojana-Saathi)](https://github.com/Yojana-Saathi/Yojana-Saathi/graphs/contributors)
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](#-license)
 
 [**Problem**](#-the-problem) · [**How it works**](#-how-it-works) · [**Quickstart**](#-quickstart) · [**API**](#-api-reference) · [**Architecture**](#-architecture) · [**Wiki**](https://github.com/Yojana-Saathi/Yojana-Saathi/wiki) · [**Discussions**](https://github.com/Yojana-Saathi/Yojana-Saathi/discussions) · [**Contribute**](CONTRIBUTING.md) · [**Deploy**](#-deployment)
 
