@@ -13,6 +13,8 @@
   --color-caution-amber: #C9820A;
   --color-petal-gold: #E8A63D;
 
+  --animate-breathe: breathe 10s ease-in-out infinite;
+
   --color-ink-navy-50: #E8ECF2;
   --color-ink-navy-100: #C5CDDB;
   --color-ink-navy-200: #9FABC2;
@@ -116,6 +118,11 @@
   }
 }
 
+::selection {
+  background-color: rgba(242, 100, 26, 0.25);
+  color: inherit;
+}
+
 .ink-stamp {
   position: relative;
 }
@@ -129,4 +136,36 @@
   pointer-events: none;
   mix-blend-mode: multiply;
   border-radius: inherit;
+}
+
+@keyframes breathe {
+  0%, 100% { transform: scale(0.68); }
+  50%      { transform: scale(1); }
+}
+
+@keyframes float {
+  0%, 100% { transform: translateY(0); }
+  50%      { transform: translateY(-8px); }
+}
+
+@keyframes shine {
+  0%   { transform: translateX(-100%); }
+  50%  { transform: translateX(100%); }
+  100% { transform: translateX(100%); }
+}
+
+@keyframes drawLine {
+  from { stroke-dashoffset: 800; }
+  to   { stroke-dashoffset: 0; }
+}
+
+@keyframes fadeInOut {
+  0%, 100% { opacity: 0.08; }
+  50%      { opacity: 0.2; }
+}
+
+@keyframes tilt {
+  0%, 100% { transform: rotate(0deg); }
+  25%      { transform: rotate(-4deg); }
+  75%      { transform: rotate(4deg); }
 }
