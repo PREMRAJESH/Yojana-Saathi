@@ -25,6 +25,8 @@ export default function SchemesPage() {
   const [schemes, setSchemes] = useState<Scheme[]>([]);
   const [loading, setLoading] = useState(true);
   const pageRef = useRef<HTMLDivElement>(null);
+  const labourRef = useRef<HTMLImageElement>(null);
+  const kidsRef = useRef<HTMLImageElement>(null);
 
   useEffect(() => {
     searchSchemes()
@@ -46,6 +48,17 @@ export default function SchemesPage() {
     } catch { return; }
   }, [schemes]);
 
+  useEffect(() => {
+    const labour = labourRef.current;
+    const kids = kidsRef.current;
+    if (!labour || !kids) return;
+    const tl = gsap.timeline({ repeat: -1, yoyo: true });
+    tl.to(labour, { y: -4, duration: 3.5, ease: "sine.inOut" }, 0);
+    tl.to(kids, { y: -5, duration: 4.2, ease: "sine.inOut" }, 0);
+    tl.progress(Math.random());
+    return () => { tl.kill(); };
+  }, []);
+
   const filtered = schemes.filter((s) => {
     const matchSearch = !search || s.scheme_name.toLowerCase().includes(search.toLowerCase()) || s.benefit_summary.toLowerCase().includes(search.toLowerCase());
     const matchCat = category === "All" || s.scheme_category === category;
@@ -57,7 +70,16 @@ export default function SchemesPage() {
       <Navbar />
       <main className="relative flex-1 overflow-hidden bg-gradient-to-b from-white to-warm-paper">
         <img
-          src="/labour2.png"
+          ref={kidsRef}
+          src="/assets/kids.png"
+          alt=""
+          aria-hidden
+          className="pointer-events-none absolute bottom-0"
+          style={{ left: "-2%", height: "500px", opacity: "0.12" }}
+        />
+        <img
+          ref={labourRef}
+          src="/assets/labour2.png"
           alt=""
           aria-hidden
           className="pointer-events-none absolute bottom-0"

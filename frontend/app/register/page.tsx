@@ -81,7 +81,7 @@ export default function RegisterPage() {
         <div className="w-full max-w-lg">
           <div className="rg-hero text-center sm:text-left">
             <div className="mx-auto flex h-14 w-14 items-center justify-center overflow-hidden rounded-2xl bg-white shadow-sm ring-1 ring-ink-navy/10 sm:mx-0">
-              <img src="/logo-bg.png" alt="YojanaSaathi" className="h-full w-full object-contain" loading="lazy" />
+              <img src="/assets/logo-bg.png" alt="YojanaSaathi" className="h-full w-full object-contain" loading="lazy" />
             </div>
             <h1 className="mt-4 font-display text-2xl font-semibold tracking-tight text-ink-navy">Create your account</h1>
             <p className="mt-1 text-sm text-slate-blue">Fill in your details once. We match you against every scheme.</p>

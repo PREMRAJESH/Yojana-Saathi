@@ -29,7 +29,7 @@ export default function AboutPage() {
         <div className="mx-auto max-w-3xl px-4 py-12 sm:px-6 sm:py-16 lg:px-8">
           <div className="ab-hero text-center">
             <div className="mx-auto flex h-16 w-16 items-center justify-center overflow-hidden rounded-2xl bg-gradient-to-br from-signal-orange/20 to-signal-orange/5 ring-1 ring-signal-orange/20 shadow-sm">
-              <img src="/logo-bg.png" alt="YojanaSaathi" className="h-full w-full object-contain" loading="lazy" />
+              <img src="/assets/logo-bg.png" alt="YojanaSaathi" className="h-full w-full object-contain" loading="lazy" />
             </div>
             <h1 className="mt-5 font-display text-3xl font-semibold tracking-tight text-ink-navy sm:text-4xl lg:text-5xl">
               About YojanaSaathi

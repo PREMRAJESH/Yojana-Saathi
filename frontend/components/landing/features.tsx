@@ -104,7 +104,7 @@ export function Features() {
       <div
         className="pointer-events-none absolute inset-0"
         style={{
-          backgroundImage: "url('/bottom-waves.svg')",
+          backgroundImage: "url('/assets/bottom-waves.svg')",
           backgroundSize: "cover",
           backgroundPosition: "center bottom",
           backgroundRepeat: "no-repeat",

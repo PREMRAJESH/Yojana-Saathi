@@ -115,7 +115,7 @@ export function Hero() {
             {/* Main illustration - loader video */}
             <div className="relative w-[700px] max-w-full">
               <video
-                src="/loader.mp4"
+                src="/assets/loader.mp4"
                 autoPlay
                 loop
                 muted

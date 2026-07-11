@@ -164,7 +164,7 @@ export function HeroPanel() {
         <div className="mb-5 rounded-xl border border-white/10 bg-white/[0.04] p-5 backdrop-blur-sm">
           <div className="mb-4 flex items-center gap-4">
             <div className="flex h-14 w-14 items-center justify-center overflow-hidden rounded-2xl bg-white/10 ring-1 ring-white/20">
-              <img src="/logo-bg.png" alt="YojanaSaathi" className="h-full w-full object-contain" loading="lazy" />
+              <img src="/assets/logo-bg.png" alt="YojanaSaathi" className="h-full w-full object-contain" loading="lazy" />
             </div>
             <div>
               <p className="text-sm font-medium text-white/90">Your Digital Profile</p>

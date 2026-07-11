@@ -35,7 +35,7 @@ export default function LoginPage() {
             <div className="pointer-events-none absolute -bottom-20 -left-20 h-[400px] w-[400px] rounded-full bg-verified-teal/10 blur-3xl" />
             <div className="relative px-12 text-center">
               <div className="mx-auto flex h-20 w-20 items-center justify-center overflow-hidden rounded-2xl bg-white/10 ring-1 ring-white/20 backdrop-blur-sm">
-                <img src="/logo-bg.png" alt="YojanaSaathi" className="h-full w-full object-contain" loading="lazy" />
+                <img src="/assets/logo-bg.png" alt="YojanaSaathi" className="h-full w-full object-contain" loading="lazy" />
               </div>
               <h2 className="mt-6 font-display text-3xl font-semibold text-white">YojanaSaathi</h2>
               <p className="mt-2 max-w-sm text-sm leading-relaxed text-white/60">
@@ -49,7 +49,7 @@ export default function LoginPage() {
             <div className="w-full max-w-sm">
               <div className="text-center lg:hidden">
                 <div className="mx-auto flex h-14 w-14 items-center justify-center overflow-hidden rounded-2xl bg-white shadow-sm ring-1 ring-ink-navy/10">
-                  <img src="/logo-bg.png" alt="YojanaSaathi Logo" className="h-full w-full object-contain" loading="lazy" />
+                  <img src="/assets/logo-bg.png" alt="YojanaSaathi Logo" className="h-full w-full object-contain" loading="lazy" />
                 </div>
                 <h1 className="mt-4 font-display text-2xl font-semibold tracking-tight text-ink-navy">Welcome back</h1>
                 <p className="mt-1 text-sm text-slate-blue">Sign in to check your schemes</p>

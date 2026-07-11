@@ -239,7 +239,7 @@ export function FAQ() {
       {/* Woman image — fixed position, not affected by accordion height changes */}
       <img
         ref={womanRef}
-        src="/woman.png"
+        src="/assets/woman.png"
         alt=""
         aria-hidden
         className="pointer-events-none absolute bottom-0 opacity-[0.12]"
@@ -248,7 +248,7 @@ export function FAQ() {
       {/* Labour image — left side */}
       <img
         ref={labourRef}
-        src="/labour.png"
+        src="/assets/labour.png"
         alt=""
         aria-hidden
         className="pointer-events-none absolute bottom-0 opacity-[0.12]"
