@@ -36,7 +36,7 @@ from .core.request_cache import RequestCache
 from .core.scheme_loader import load_schemes
 from .core.security import build_limiter, configure_cors
 from .core.supabase_client import get_service_role_client
-from .core.auth import get_current_user, verify_internal_secret
+from .core.auth import AuthenticatedUser, get_current_user, get_current_user_client, verify_internal_secret
 from .llm.gemini_client import GeminiClient
 from .models.enums import ErrorCode, ProcessingStatus, GOV_ID_KEYS, Gender, Occupation, SocialCategory, DisabilityStatus, EducationLevel
 from .models.response_models import (
@@ -154,13 +154,14 @@ def _register_routes(app: FastAPI) -> None:
     async def intake(
         request: Request,
         profile: CitizenProfile,
-        user_id: str = Depends(get_current_user)
+        auth: AuthenticatedUser = Depends(get_current_user_client)
     ) -> IntakeResponse:
+        user_id = auth.user_id
+        supabase = auth.supabase
         request_id = str(uuid.uuid4())
         # Bind request_id to the log context; NEVER log the full profile.
         structlog.contextvars.bind_contextvars(request_id=request_id)
         try:
-            supabase = get_service_role_client()
             
             # 1. Flip is_current to False for existing user profiles in a transaction/sequence
             supabase.table("citizen_profiles").update({"is_current": False}).eq("user_id", user_id).eq("is_current", True).execute()
@@ -248,11 +249,12 @@ def _register_routes(app: FastAPI) -> None:
         request: Request,
         scheme_id: str,
         request_id: str = Query(..., description="request_id from the earlier /api/intake call"),
-        user_id: str = Depends(get_current_user)
+        auth: AuthenticatedUser = Depends(get_current_user_client)
     ):
+        user_id = auth.user_id
+        supabase = auth.supabase
         structlog.contextvars.bind_contextvars(request_id=request_id)
         try:
-            supabase = get_service_role_client()
             
             # Fetch scheme from global cache
             scheme: Scheme | None = request.app.state.schemes_by_id.get(scheme_id)
@@ -321,10 +323,11 @@ def _register_routes(app: FastAPI) -> None:
         request: Request,
         doc_type: str = Form(...),
         file: UploadFile = File(...),
-        user_id: str = Depends(get_current_user)
+        auth: AuthenticatedUser = Depends(get_current_user_client)
     ):
+        user_id = auth.user_id
+        supabase = auth.supabase
         try:
-            supabase = get_service_role_client()
             
             # Enforce owner-prefixed unique path structure {user_id}/{doc_type}/{unique_filename}
             unique_filename = f"{uuid.uuid4()}_{file.filename}"
@@ -382,10 +385,11 @@ def _register_routes(app: FastAPI) -> None:
     async def confirm_document(
         doc_id: str,
         confirmed_data: dict,
-        user_id: str = Depends(get_current_user)
+        auth: AuthenticatedUser = Depends(get_current_user_client)
     ):
+        user_id = auth.user_id
+        supabase = auth.supabase
         try:
-            supabase = get_service_role_client()
             
             # Verify owner
             doc_res = supabase.table("documents").select("*").eq("id", doc_id).eq("user_id", user_id).execute()
@@ -448,9 +452,10 @@ def _register_routes(app: FastAPI) -> None:
             )
 
     @app.get("/api/documents")
-    async def list_documents(user_id: str = Depends(get_current_user)):
+    async def list_documents(auth: AuthenticatedUser = Depends(get_current_user_client)):
+        user_id = auth.user_id
+        supabase = auth.supabase
         try:
-            supabase = get_service_role_client()
             res = supabase.table("documents").select("*").eq("user_id", user_id).execute()
             
             docs = []
@@ -698,10 +703,11 @@ def _register_routes(app: FastAPI) -> None:
     async def get_notifications(
         page: int = 1,
         limit: int = 20,
-        user_id: str = Depends(get_current_user)
+        auth: AuthenticatedUser = Depends(get_current_user_client)
     ):
+        user_id = auth.user_id
+        supabase = auth.supabase
         try:
-            supabase = get_service_role_client()
             offset = (page - 1) * limit
             res = (
                 supabase.table("notifications")
@@ -724,10 +730,11 @@ def _register_routes(app: FastAPI) -> None:
     @app.post("/api/notifications/{notification_id}/read")
     async def mark_notification_read(
         notification_id: str,
-        user_id: str = Depends(get_current_user)
+        auth: AuthenticatedUser = Depends(get_current_user_client)
     ):
+        user_id = auth.user_id
+        supabase = auth.supabase
         try:
-            supabase = get_service_role_client()
             res = supabase.table("notifications").update({"read_at": "now()"}).eq("id", notification_id).eq("user_id", user_id).execute()
             if not res.data:
                 raise HTTPException(status_code=404, detail="Notification not found")

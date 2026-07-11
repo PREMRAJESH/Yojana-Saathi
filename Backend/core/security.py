@@ -32,6 +32,8 @@ def build_limiter(settings: Settings) -> Limiter:
     )
 
 
+CORS_ALLOWED_HEADERS = ["Authorization", "Content-Type", "X-Internal-Secret"]
+
 def configure_cors(app: FastAPI, settings: Settings) -> None:
     """Attach CORS middleware using the explicit origin allowlist (never '*')."""
     app.add_middleware(
@@ -39,5 +41,5 @@ def configure_cors(app: FastAPI, settings: Settings) -> None:
         allow_origins=settings.cors_origins,
         allow_credentials=True,
         allow_methods=["GET", "POST", "OPTIONS"],
-        allow_headers=["*"],
+        allow_headers=CORS_ALLOWED_HEADERS,
     )
