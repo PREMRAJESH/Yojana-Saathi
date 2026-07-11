@@ -1,8 +1,66 @@
 "use client";
-import { useState } from "react";
-import { useRouter } from "next/navigation";
+
 import Link from "next/link";
-import { supabase } from "./lib/supabaseClient";
+import { useRouter } from "next/navigation";
+import { useState } from "react";
+import { supabase, isSupabaseConfigured } from "./lib/supabaseClient";
+
+const profileFields = [
+  { icon: "person", label: "Age" },
+  { icon: "work", label: "Occupation" },
+  { icon: "location_on", label: "State" },
+  { icon: "payments", label: "Income" },
+  { icon: "category", label: "Category" },
+];
+
+const scanSteps = [
+  { label: "Checking Eligibility Rules", state: "done" },
+  { label: "Verifying Documents", state: "done" },
+  { label: "Matching Benefits", state: "active" },
+  { label: "Finalizing Results", state: "pending" },
+];
+
+const matchingSchemes = [
+  {
+    icon: "agriculture",
+    iconClass: "bg-green-50 text-green-600",
+    title: "PM-KISAN",
+    subtitle: "Farmer Income Support",
+    amount: "\u20B96,000 / year",
+    amountClass: "text-green-600",
+  },
+  {
+    icon: "medical_services",
+    iconClass: "bg-rose-50 text-rose-500",
+    title: "Ayushman Bharat",
+    subtitle: "Health Coverage",
+    amount: "Up to \u20B95 Lakh",
+    amountClass: "text-orange-500",
+  },
+  {
+    icon: "school",
+    iconClass: "bg-indigo-50 text-indigo-500",
+    title: "National Scholarship",
+    subtitle: "Education Support",
+    amount: "Up to \u20B975,000",
+    amountClass: "text-orange-500",
+  },
+  {
+    icon: "home",
+    iconClass: "bg-orange-50 text-orange-500",
+    title: "PM Awas Yojana",
+    subtitle: "Housing Assistance",
+    amount: "Up to \u20B91,20,000",
+    amountClass: "text-orange-500",
+  },
+];
+
+const stats = [
+  { icon: "description", value: "4,702+", label: "Government\nSchemes" },
+  { icon: "groups", value: "28", label: "States & UTs\nCovered" },
+  { icon: "check_circle", value: "95%+", label: "Match\nAccuracy" },
+  { icon: "shield", value: "100%", label: "Private &\nSecure" },
+];
 
 export default function Home() {
   const router = useRouter();
@@ -10,310 +68,442 @@ export default function Home() {
 
   async function handleCheckEligibility() {
     setChecking(true);
-    const { data: { session } } = await supabase.auth.getSession();
+    if (!isSupabaseConfigured || !supabase) {
+      router.push("/login");
+      return;
+    }
+    const {
+      data: { session },
+    } = await supabase.auth.getSession();
+
     if (session) {
       router.push("/dashboard");
     } else {
       router.push("/login");
     }
+
     setChecking(false);
   }
 
-
   return (
     <>
-      {/* BEGIN: Header */}
-      <header className="sticky top-0 z-50 bg-white border-b border-gray-100 shadow-sm py-4">
-        <div className="container mx-auto px-6 lg:px-8 max-w-7xl flex items-center justify-between">
-          {/* Logo */}
-          <Link className="flex items-center gap-2 group" href="/">
+      <header className="sticky top-0 z-50 border-b border-gray-100 bg-white/90 py-3 shadow-sm backdrop-blur-md">
+        <div className="container mx-auto flex max-w-7xl items-center justify-between px-6 lg:px-10">
+          <Link className="group flex items-center gap-2" href="/">
             {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src="/media/logo.png" alt="Yojana Saarthi Logo" width={36} height={36} className="group-hover:scale-105 transition-transform" />
-            <span className="text-xl font-bold tracking-tight text-navy-900">Yojana Saarthi</span>
+            <img
+              src="/media/logo.png"
+              alt="Yojana Saarthi Logo"
+              width={34}
+              height={34}
+              className="transition-transform group-hover:scale-105"
+            />
+            <span className="text-xl font-bold tracking-tight text-[#1B2B4B]">Yojana Saarthi</span>
           </Link>
-          {/* Desktop Nav */}
-          <nav className="hidden md:flex items-center gap-8 font-medium text-gray-600">
-            <Link className="hover:text-orange-500 transition-colors" href="/schemes">Schemes</Link>
-            <Link className="hover:text-orange-500 transition-colors" href="/dashboard">Eligibility</Link>
-            <Link className="hover:text-orange-500 transition-colors" href="/login">Sign In</Link>
-            <Link className="hover:text-orange-500 transition-colors" href="/register">Register</Link>
+
+          <nav className="hidden items-center gap-8 font-medium text-gray-500 md:flex">
+            <Link className="text-sm transition-colors hover:text-orange-500" href="/schemes">
+              Schemes
+            </Link>
+            <Link className="text-sm transition-colors hover:text-orange-500" href="/dashboard">
+              Eligibility
+            </Link>
+            <Link className="text-sm transition-colors hover:text-orange-500" href="/login">
+              Sign In
+            </Link>
+            <Link className="text-sm transition-colors hover:text-orange-500" href="/register">
+              Register
+            </Link>
           </nav>
-          {/* CTA */}
+
           <button
             onClick={handleCheckEligibility}
             disabled={checking}
-            className="hidden md:inline-flex items-center justify-center px-6 py-2.5 text-sm font-semibold text-white bg-orange-500 rounded-full hover:bg-orange-600 transition-colors shadow-md shadow-orange-500/20 disabled:opacity-70"
+            className="hidden items-center justify-center rounded-full bg-orange-500 px-5 py-2 text-sm font-semibold text-white shadow-md shadow-orange-500/20 transition-colors hover:bg-orange-600 disabled:opacity-70 md:inline-flex"
           >
             {checking ? "Checking..." : "Check Eligibility"}
           </button>
-          {/* Mobile Menu Button (Hidden on Desktop) */}
-          <button className="md:hidden p-2 text-gray-600">
-            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M4 6h16M4 12h16M4 18h16" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2"></path></svg>
+
+          <button className="p-2 text-gray-600 md:hidden" aria-label="Open navigation">
+            <span className="material-symbols-outlined text-[28px]">menu</span>
           </button>
         </div>
       </header>
-      {/* END: Header */}
 
       <main>
-        {/* BEGIN: Hero Section */}
-        <section className="relative pt-16 pb-24 overflow-hidden bg-navy-50">
-          <div className="container mx-auto px-6 lg:px-8 max-w-7xl">
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 items-center">
-              {/* Hero Content */}
-              <div className="max-w-xl">
-                <h1 className="text-5xl lg:text-6xl font-bold leading-[1.1] mb-6">
-                  <span className="text-navy-900 block">Unlock Your</span>
-                  <span className="text-orange-500 block">Right</span>
-                  <span className="text-navy-900 block">to Benefits</span>
-                </h1>
-                <p className="text-lg text-gray-600 mb-8 leading-relaxed">
-                  Navigate the complexity of government schemes with confidence. Yojana Saarthi, advanced eligibility reasoning—ensuring you never miss out on what you deserve.
-                </p>
-                <div className="flex flex-wrap gap-4">
-                  <button
-                    onClick={handleCheckEligibility}
-                    disabled={checking}
-                    className="inline-flex items-center justify-center px-8 py-3.5 text-base font-semibold text-white bg-orange-500 rounded-lg hover:bg-orange-600 transition-colors shadow-lg shadow-orange-500/30 group disabled:opacity-70"
-                  >
-                    {checking ? "Checking..." : "Check Eligibility Now"}
-                    <svg className="w-5 h-5 ml-2 group-hover:translate-x-1 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M14 5l7 7m0 0l-7 7m7-7H3" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2"></path></svg>
-                  </button>
-                  <a className="inline-flex items-center justify-center px-8 py-3.5 text-base font-semibold text-navy-900 bg-white border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors" href="#">
-                    How It Works
-                  </a>
-                </div>
+        <section className="relative isolate overflow-hidden bg-[#f7fbff]">
+          <video
+            className="absolute inset-0 -z-20 h-full w-full object-cover object-[55%_center]"
+            autoPlay
+            muted
+            loop
+            playsInline
+            preload="auto"
+            aria-hidden="true"
+          >
+            <source src="/media/loop.mp4" type="video/mp4" />
+          </video>
+          <div className="absolute inset-0 -z-10 bg-gradient-to-r from-white/92 via-white/58 to-white/76" />
+          <div className="absolute inset-x-0 top-0 -z-10 h-44 bg-gradient-to-b from-white/80 to-transparent" />
+
+          <div className="mx-auto grid min-h-[calc(100vh-65px)] w-full max-w-[1440px] grid-cols-1 items-center gap-9 px-5 pb-10 pt-9 sm:px-8 sm:pt-12 lg:px-12 xl:grid-cols-[minmax(0,0.92fr)_minmax(420px,0.72fr)] xl:gap-12 xl:pb-12 xl:pt-12 2xl:gap-16">
+            <div className="relative z-20 flex flex-col justify-center">
+              <div className="inline-flex w-fit max-w-full items-center gap-2 rounded-full border border-orange-200 bg-white/75 px-3 py-1.5 shadow-sm backdrop-blur">
+                <span className="material-symbols-outlined text-[17px] text-orange-500">verified_user</span>
+                <span className="text-[10px] font-bold uppercase tracking-[0.14em] text-orange-500 sm:text-[11px] sm:tracking-[0.2em]">
+                  AI-Powered <span className="mx-1">{"\u2022"}</span> Open Source{" "}
+                  <span className="mx-1">{"\u2022"}</span> For Every Citizen
+                </span>
               </div>
-              {/* Hero Graphic */}
-              <div className="relative w-full h-[500px] flex items-center justify-center">
-                {/* Simplified CSS representation of the graphic */}
-                <div className="absolute inset-0 dotted-path opacity-20"></div>
-                {/* Central Lotus (CSS Drawing Placeholder) */}
-                <div className="relative z-10 w-64 h-64">
-                  <svg className="w-full h-full text-navy-900 drop-shadow-xl" fill="currentColor" viewBox="0 0 100 100">
-                    {/* Petals */}
-                    <path d="M50 10 C30 30, 20 60, 50 80 C80 60, 70 30, 50 10" fill="#F5842B"></path>
-                    <path d="M50 80 C20 70, 10 40, 30 20 C40 40, 45 60, 50 80" fill="#1B2B4B"></path>
-                    <path d="M50 80 C80 70, 90 40, 70 20 C60 40, 55 60, 50 80" fill="#1B2B4B"></path>
-                    {/* Connecting nodes */}
-                    <circle cx="50" cy="50" fill="#fff" r="4"></circle>
-                    <circle cx="40" cy="65" fill="#fff" r="3"></circle>
-                    <circle cx="60" cy="65" fill="#fff" r="3"></circle>
-                    <line stroke="#fff" strokeWidth="1.5" x1="50" x2="40" y1="50" y2="65"></line>
-                    <line stroke="#fff" strokeWidth="1.5" x1="50" x2="60" y1="50" y2="65"></line>
-                  </svg>
-                </div>
-                {/* Floating Icons */}
-                <div className="absolute top-10 left-10 p-3 bg-white rounded-xl shadow-lg border border-gray-100 animate-bounce" style={{ animationDuration: '3s' }}>
-                  <svg className="w-6 h-6 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2"></path></svg>
-                </div>
-                <div className="absolute top-4 right-20 p-3 bg-white rounded-xl shadow-lg border border-gray-100 animate-bounce" style={{ animationDuration: '4s', animationDelay: '1s' }}>
-                  <svg className="w-6 h-6 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2"></path></svg>
-                </div>
-                <div className="absolute bottom-20 left-4 p-3 bg-white rounded-xl shadow-lg border border-gray-100 animate-bounce" style={{ animationDuration: '3.5s', animationDelay: '0.5s' }}>
-                  <svg className="w-6 h-6 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2"></path></svg>
-                </div>
-                <div className="absolute bottom-10 right-10 p-3 bg-white rounded-xl shadow-lg border border-gray-100 animate-bounce" style={{ animationDuration: '4.5s', animationDelay: '1.5s' }}>
-                  <svg className="w-6 h-6 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M7 12l3-3 3 3 4-4M8 21l4-4 4 4M3 4h18M4 4h16v12a1 1 0 01-1 1H5a1 1 0 01-1-1V4z" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2"></path></svg>
-                </div>
-              </div>
-            </div>
-          </div>
-        </section>
-        {/* END: Hero Section */}
-        {/* BEGIN: Pain Points Section */}
-        <section className="py-24 bg-white">
-          <div className="container mx-auto px-6 lg:px-8 max-w-7xl">
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-16 items-center">
-              {/* Left Text */}
-              <div>
-                <h3 className="text-orange-500 font-bold uppercase tracking-wider text-sm mb-3">The Real Challenge</h3>
-                <h2 className="text-4xl font-bold text-navy-900 mb-6 leading-tight">Why Finding the Right Scheme is So Hard</h2>
-                <p className="text-gray-600 text-lg leading-relaxed">
-                  With 4,700+ schemes, complex rules, and endless paperwork, most eligible benefits go unclaimed. It doesn&apos;t have to be this way.
-                </p>
-              </div>
-              {/* Right Cards */}
-              <div className="space-y-4">
-                {/* Card 1 */}
-                <div className="flex items-start p-6 bg-red-50/50 rounded-2xl shadow-soft border border-red-100 transition-transform hover:-translate-y-1">
-                  <div className="flex-shrink-0 w-12 h-12 bg-red-100 rounded-full flex items-center justify-center mr-5">
-                    <svg className="w-6 h-6 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2"></path></svg>
-                  </div>
-                  <div>
-                    <h4 className="text-xl font-bold text-gray-900 mb-2">Too Much Information</h4>
-                    <p className="text-gray-600">Sifting through bureaucratic overwhelming pages to figure if you qualify.</p>
-                  </div>
-                </div>
-                {/* Card 2 */}
-                <div className="flex items-start p-6 bg-orange-50 rounded-2xl shadow-soft border border-orange-100 transition-transform hover:-translate-y-1">
-                  <div className="flex-shrink-0 w-12 h-12 bg-orange-100 rounded-full flex items-center justify-center mr-5">
-                    <svg className="w-6 h-6 text-orange-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2"></path></svg>
-                  </div>
-                  <div>
-                    <h4 className="text-xl font-bold text-gray-900 mb-2">Irrelevant Results</h4>
-                    <p className="text-gray-600">Search results returning hundreds of irrelevant meant results.</p>
-                  </div>
-                </div>
-                {/* Card 3 */}
-                <div className="flex items-start p-6 bg-blue-50/50 rounded-2xl shadow-soft border border-blue-100 transition-transform hover:-translate-y-1">
-                  <div className="flex-shrink-0 w-12 h-12 bg-blue-100 rounded-full flex items-center justify-center mr-5">
-                    <svg className="w-6 h-6 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2"></path></svg>
-                  </div>
-                  <div>
-                    <h4 className="text-xl font-bold text-gray-900 mb-2">Wasted Time &amp; Resources</h4>
-                    <p className="text-gray-600">Applying blindly and hoping for the best, wasting time and resources.</p>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-        </section>
-        {/* END: Pain Points Section */}
-        {/* BEGIN: Value Prop Section */}
-        <section className="py-24 bg-navy-50">
-          <div className="container mx-auto px-6 lg:px-8 max-w-7xl">
-            <div className="flex flex-col lg:flex-row gap-16">
-              {/* Left Header */}
-              <div className="lg:w-1/3">
-                <h3 className="text-orange-500 font-bold uppercase tracking-wider text-sm mb-3">Value Prop</h3>
-                <h2 className="text-4xl font-bold text-navy-900 mb-6 leading-tight">Clarity.<br/>Accuracy.<br/>Personalization.</h2>
-                <p className="text-gray-600 mb-6 leading-relaxed">
-                  Yojana Saarthi cuts through the noise with AI-driven reasoning and personalized matching tailored specifically for you.
-                </p>
-                <a className="inline-flex items-center text-navy-900 font-semibold hover:text-orange-500 transition-colors group" href="#">
-                  See how it works
-                  <svg className="w-4 h-4 ml-2 group-hover:translate-x-1 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M17 8l4 4m0 0l-4 4m4-4H3" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2"></path></svg>
+
+              <h1 className="mt-6 max-w-[760px] text-[44px] font-extrabold leading-[1.04] text-[#142447] sm:text-6xl lg:text-[78px] xl:mt-5 xl:text-[76px]">
+                Unlock Your
+                <br />
+                Right to
+                <br />
+                <span className="text-orange-500">Benefits</span>
+              </h1>
+
+              <p className="mt-6 max-w-[520px] text-base leading-relaxed text-gray-600 sm:text-lg xl:mt-5">
+                We scan <span className="font-bold text-orange-500">4,702+</span> government schemes using
+                advanced AI reasoning to find every benefit you are eligible for.
+              </p>
+
+              <div className="mt-8 flex flex-wrap items-center gap-3 sm:gap-4 xl:mt-7">
+                <button
+                  onClick={handleCheckEligibility}
+                  disabled={checking}
+                  className="inline-flex min-h-12 items-center gap-2 rounded-full bg-orange-500 px-6 py-3 text-sm font-bold text-white shadow-xl shadow-orange-400/30 transition-all hover:bg-orange-600 active:scale-95 disabled:opacity-70 sm:px-7 sm:py-3.5"
+                >
+                  {checking ? "Checking..." : "Check Eligibility Now"}
+                  <span className="material-symbols-outlined text-[19px]">arrow_forward</span>
+                </button>
+                <a
+                  href="#how-it-works"
+                  className="inline-flex min-h-12 items-center justify-center rounded-full bg-white/88 px-5 py-3 text-sm font-bold text-[#1B2B4B] shadow-sm ring-1 ring-gray-100 transition-colors hover:text-orange-500 sm:px-6 sm:py-3.5"
+                >
+                  How It Works
                 </a>
               </div>
-              {/* Right Grid */}
-              <div className="lg:w-2/3 grid grid-cols-1 md:grid-cols-3 gap-8">
-                {/* Item 1 */}
-                <div>
-                  <div className="w-16 h-16 bg-white rounded-2xl shadow-sm flex items-center justify-center mb-6 border border-gray-100">
-                    <svg className="w-8 h-8 text-navy-900" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5"></path></svg>
+
+              <div className="mt-10 grid max-w-2xl grid-cols-2 gap-4 sm:mt-11 sm:grid-cols-4 xl:mt-9">
+                {stats.map((stat) => (
+                  <div key={stat.value} className="flex min-w-0 items-center gap-2 sm:gap-3">
+                    <span className="material-symbols-outlined flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-white/90 text-[24px] text-[#1B2B4B] shadow-sm ring-1 ring-gray-100 sm:h-12 sm:w-12 sm:text-[25px]">
+                      {stat.icon}
+                    </span>
+                    <span className="min-w-0">
+                      <span className="block text-xl font-extrabold leading-none text-[#142447] sm:text-2xl">
+                        {stat.value}
+                      </span>
+                      <span className="mt-1 block whitespace-pre-line text-[12px] leading-tight text-gray-600">
+                        {stat.label}
+                      </span>
+                    </span>
                   </div>
-                  <h4 className="text-xl font-bold text-gray-900 mb-3">AI-Driven Accuracy</h4>
-                  <p className="text-gray-600 text-sm leading-relaxed">Advanced AI understands complex eligibility rules and cross-verifies thousands of criteria.</p>
+                ))}
+              </div>
+            </div>
+
+            <div className="relative z-10 mt-10 flex justify-center xl:mt-0 xl:justify-end">
+              <div className="w-full max-w-[520px] rounded-[26px] border border-white/80 bg-white/78 p-4 shadow-2xl shadow-slate-900/10 backdrop-blur-xl sm:p-5">
+                <div className="flex items-start justify-between gap-4">
+                  <div>
+                    <p className="text-xs font-extrabold uppercase tracking-[0.18em] text-orange-500">
+                      Eligibility Preview
+                    </p>
+                    <h2 className="mt-1 text-xl font-extrabold text-[#142447]">Find matches in minutes</h2>
+                  </div>
+                  <span className="rounded-full bg-green-50 px-3 py-1 text-xs font-bold text-green-600 ring-1 ring-green-100">
+                    Live scan
+                  </span>
                 </div>
-                {/* Item 2 */}
-                <div>
-                  <div className="w-16 h-16 bg-blue-50 rounded-2xl shadow-sm flex items-center justify-center mb-6 border border-blue-100">
-                    <svg className="w-8 h-8 text-navy-900" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5"></path></svg>
-                  </div>
-                  <h4 className="text-xl font-bold text-gray-900 mb-3">Personalized for You</h4>
-                  <p className="text-gray-600 text-sm leading-relaxed">Matches are tailored to your demographic, financial, and personal profile.</p>
+
+                <div className="mt-5 flex flex-wrap gap-2.5">
+                  {profileFields.map((field) => (
+                    <div
+                      key={field.label}
+                      className="flex min-h-11 items-center gap-2 rounded-xl border border-gray-100 bg-white/82 px-3 text-xs font-semibold text-[#1B2B4B] shadow-sm"
+                    >
+                      <span className="material-symbols-outlined text-[17px] text-orange-500">{field.icon}</span>
+                      <span>{field.label}</span>
+                    </div>
+                  ))}
                 </div>
-                {/* Item 3 */}
-                <div>
-                  <div className="w-16 h-16 bg-white rounded-2xl shadow-sm flex items-center justify-center mb-6 border border-gray-100">
-                    <svg className="w-8 h-8 text-navy-900" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5"></path></svg>
+
+                <div className="mt-5 grid gap-4 lg:grid-cols-[0.9fr_1.1fr]">
+                  <div className="rounded-2xl border border-gray-100 bg-white/74 p-4">
+                    <p className="text-sm font-extrabold text-[#142447]">Scanning 4,702+ schemes</p>
+                    <div className="mt-3 space-y-2.5">
+                      {scanSteps.map((step) => (
+                        <div key={step.label} className="flex items-center gap-3 text-xs font-semibold">
+                          {step.state === "done" ? (
+                            <span className="material-symbols-outlined filled text-[18px] text-green-500">
+                              check_circle
+                            </span>
+                          ) : step.state === "active" ? (
+                            <span className="h-[18px] w-[18px] rounded-full border-2 border-orange-400 border-t-transparent motion-safe:animate-spin" />
+                          ) : (
+                            <span className="h-[18px] w-[18px] rounded-full border border-gray-200" />
+                          )}
+                          <span
+                            className={
+                              step.state === "active"
+                                ? "text-orange-500"
+                                : step.state === "done"
+                                  ? "text-gray-700"
+                                  : "text-gray-400"
+                            }
+                          >
+                            {step.label}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
                   </div>
-                  <h4 className="text-xl font-bold text-gray-900 mb-3">Transparent Reasoning</h4>
-                  <p className="text-gray-600 text-sm leading-relaxed">Clear reasons for every match—so you always know why you&apos;re eligible.</p>
+
+                  <div>
+                    <p className="mb-3 text-xs font-extrabold uppercase tracking-[0.18em] text-orange-500">
+                      Matching Schemes
+                    </p>
+                    <div className="grid gap-2.5 2xl:grid-cols-2">
+                      {matchingSchemes.map((scheme, index) => (
+                        <div
+                          key={scheme.title}
+                          className={`flex min-h-[78px] items-center gap-3 rounded-2xl border border-gray-100 bg-white/84 px-3 py-2.5 shadow-sm ${
+                            index > 1 ? "hidden sm:flex" : ""
+                          }`}
+                        >
+                          <span
+                            className={`material-symbols-outlined filled flex h-10 w-10 shrink-0 items-center justify-center rounded-xl text-[23px] ${scheme.iconClass}`}
+                          >
+                            {scheme.icon}
+                          </span>
+                          <span className="min-w-0 flex-1">
+                            <span className="block text-[13px] font-extrabold leading-tight text-[#142447]">
+                              {scheme.title}
+                            </span>
+                            <span className="mt-0.5 block truncate text-xs text-gray-500">{scheme.subtitle}</span>
+                            <span className={`mt-1 block truncate text-[13px] font-extrabold ${scheme.amountClass}`}>
+                              {scheme.amount}
+                            </span>
+                          </span>
+                          <span className="material-symbols-outlined filled shrink-0 text-[20px] text-green-500">
+                            check_circle
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
                 </div>
               </div>
             </div>
           </div>
         </section>
-        {/* END: Value Prop Section */}
-        {/* BEGIN: Stats Bar */}
-        <section className="bg-navy-900 py-12">
-          <div className="container mx-auto px-6 lg:px-8 max-w-7xl">
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-8 divide-x divide-white/10">
-              {/* Stat 1 */}
-              <div className="flex items-center gap-4 px-4">
-                <svg className="w-10 h-10 text-orange-500 opacity-80" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5"></path></svg>
-                <div>
-                  <div className="text-3xl font-bold text-white mb-1">4,700+</div>
-                  <div className="text-orange-100 text-sm">Government Schemes Analyzed</div>
-                </div>
+
+        <section className="bg-white py-24" id="how-it-works">
+          <div className="container mx-auto max-w-7xl px-6 lg:px-8">
+            <div className="grid grid-cols-1 items-center gap-16 lg:grid-cols-2">
+              <div>
+                <h3 className="mb-3 text-sm font-bold uppercase tracking-wider text-orange-500">The Real Challenge</h3>
+                <h2 className="mb-6 text-4xl font-bold leading-tight text-[#1B2B4B]">
+                  Why Finding the Right Scheme is So Hard
+                </h2>
+                <p className="text-lg leading-relaxed text-gray-600">
+                  With 4,700+ schemes, complex rules, and endless paperwork, most eligible benefits go unclaimed.
+                  It doesn&apos;t have to be this way.
+                </p>
               </div>
-              {/* Stat 2 */}
-              <div className="flex items-center gap-4 px-4">
-                <svg className="w-10 h-10 text-orange-500 opacity-80" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5"></path></svg>
-                <div>
-                  <div className="text-3xl font-bold text-white mb-1">10L+</div>
-                  <div className="text-orange-100 text-sm">Profiles Evaluated</div>
-                </div>
-              </div>
-              {/* Stat 3 */}
-              <div className="flex items-center gap-4 px-4">
-                <svg className="w-10 h-10 text-orange-500 opacity-80" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M13 10V3L4 14h7v7l9-11h-7z" strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5"></path></svg>
-                <div>
-                  <div className="text-3xl font-bold text-white mb-1">95%</div>
-                  <div className="text-orange-100 text-sm">Match Accuracy</div>
-                </div>
-              </div>
-              {/* Stat 4 */}
-              <div className="flex items-center gap-4 px-4">
-                <svg className="w-10 h-10 text-orange-500 opacity-80" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5"></path></svg>
-                <div>
-                  <div className="text-3xl font-bold text-white mb-1">100%</div>
-                  <div className="text-orange-100 text-sm">Data Privacy Guaranteed</div>
-                </div>
+              <div className="space-y-4">
+                {[
+                  {
+                    bg: "bg-red-50",
+                    border: "border-red-100",
+                    iconBg: "bg-red-100",
+                    iconColor: "text-red-600",
+                    icon: "warning",
+                    title: "Too Much Information",
+                    desc: "Sifting through bureaucratic pages to figure out if you qualify.",
+                  },
+                  {
+                    bg: "bg-orange-50",
+                    border: "border-orange-100",
+                    iconBg: "bg-orange-100",
+                    iconColor: "text-orange-500",
+                    icon: "search",
+                    title: "Irrelevant Results",
+                    desc: "Search results returning hundreds of irrelevant schemes.",
+                  },
+                  {
+                    bg: "bg-blue-50/50",
+                    border: "border-blue-100",
+                    iconBg: "bg-blue-100",
+                    iconColor: "text-blue-600",
+                    icon: "schedule",
+                    title: "Wasted Time & Resources",
+                    desc: "Applying blindly and hoping for the best.",
+                  },
+                ].map((item) => (
+                  <div
+                    key={item.title}
+                    className={`flex items-start rounded-2xl border p-6 transition-transform hover:-translate-y-1 ${item.bg} ${item.border}`}
+                  >
+                    <div
+                      className={`mr-5 flex h-12 w-12 shrink-0 items-center justify-center rounded-full ${item.iconBg}`}
+                    >
+                      <span className={`material-symbols-outlined text-[27px] ${item.iconColor}`}>{item.icon}</span>
+                    </div>
+                    <div>
+                      <h4 className="mb-1 text-xl font-bold text-gray-900">{item.title}</h4>
+                      <p className="text-sm text-gray-600">{item.desc}</p>
+                    </div>
+                  </div>
+                ))}
               </div>
             </div>
           </div>
         </section>
-        {/* END: Stats Bar */}
+
+        <section className="bg-slate-50 py-24">
+          <div className="container mx-auto max-w-7xl px-6 lg:px-8">
+            <div className="flex flex-col gap-16 lg:flex-row">
+              <div className="lg:w-1/3">
+                <h3 className="mb-3 text-sm font-bold uppercase tracking-wider text-orange-500">Why Yojana Saarthi</h3>
+                <h2 className="mb-6 text-4xl font-bold leading-tight text-[#1B2B4B]">
+                  Clarity.
+                  <br />
+                  Accuracy.
+                  <br />
+                  Personalization.
+                </h2>
+                <p className="mb-6 leading-relaxed text-gray-600">
+                  Yojana Saarthi cuts through the noise with AI-driven reasoning and personalized matching tailored
+                  specifically for you.
+                </p>
+                <Link
+                  className="group inline-flex items-center font-semibold text-[#1B2B4B] transition-colors hover:text-orange-500"
+                  href="/schemes"
+                >
+                  Explore Schemes
+                  <span className="material-symbols-outlined ml-2 text-[19px] transition-transform group-hover:translate-x-1">
+                    arrow_forward
+                  </span>
+                </Link>
+              </div>
+              <div className="grid grid-cols-1 gap-8 md:grid-cols-3 lg:w-2/3">
+                {[
+                  {
+                    bg: "bg-white",
+                    icon: "precision_manufacturing",
+                    title: "AI-Driven Accuracy",
+                    desc: "Advanced AI understands complex eligibility rules and cross-verifies thousands of criteria.",
+                  },
+                  {
+                    bg: "bg-blue-50",
+                    icon: "person_search",
+                    title: "Personalized for You",
+                    desc: "Matches are tailored to your demographic, financial, and personal profile.",
+                  },
+                  {
+                    bg: "bg-white",
+                    icon: "fact_check",
+                    title: "Transparent Reasoning",
+                    desc: "Clear reasons for every match, so you always know why you are eligible.",
+                  },
+                ].map((item) => (
+                  <div key={item.title}>
+                    <div
+                      className={`mb-6 flex h-16 w-16 items-center justify-center rounded-2xl border border-gray-100 shadow-sm ${item.bg}`}
+                    >
+                      <span className="material-symbols-outlined text-[34px] text-[#1B2B4B]">{item.icon}</span>
+                    </div>
+                    <h4 className="mb-3 text-xl font-bold text-gray-900">{item.title}</h4>
+                    <p className="text-sm leading-relaxed text-gray-600">{item.desc}</p>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        </section>
       </main>
 
-      {/* BEGIN: Footer */}
-      <footer className="bg-navy-900 text-white pt-16 pb-8 border-t border-white/10">
-        <div className="container mx-auto px-6 lg:px-8 max-w-7xl">
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-12 mb-12">
-            {/* Brand Col */}
+      <footer className="border-t border-white/10 bg-[#1B2B4B] pb-8 pt-16 text-white">
+        <div className="container mx-auto max-w-7xl px-6 lg:px-8">
+          <div className="mb-12 grid grid-cols-1 gap-12 md:grid-cols-4">
             <div className="md:col-span-1">
-              <Link className="flex items-center gap-2 mb-4" href="/">
+              <Link className="mb-4 flex items-center gap-2" href="/">
                 {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img src="/media/logo.png" alt="Yojana Saarthi Logo" width={28} height={28} />
                 <span className="text-xl font-bold tracking-tight">Yojana Saarthi</span>
               </Link>
-              <p className="text-gray-400 text-sm leading-relaxed">
-                An official native eligibility initiative empowering citizens to access the benefits they deserve.
+              <p className="text-sm leading-relaxed text-gray-400">
+                An AI-powered eligibility initiative empowering every citizen to access the benefits they deserve.
               </p>
             </div>
-            {/* Links Col */}
             <div>
-              <h4 className="font-bold mb-4 text-white">Quick Links</h4>
+              <h4 className="mb-4 font-bold text-white">Quick Links</h4>
               <ul className="space-y-2 text-sm text-gray-400">
-                <li><Link className="hover:text-orange-500 transition-colors" href="/schemes">Schemes</Link></li>
-                <li><Link className="hover:text-orange-500 transition-colors" href="/dashboard">Eligibility Check</Link></li>
-                <li><Link className="hover:text-orange-500 transition-colors" href="/login">Sign In</Link></li>
-                <li><Link className="hover:text-orange-500 transition-colors" href="/register">Register</Link></li>
+                <li>
+                  <Link className="transition-colors hover:text-orange-500" href="/schemes">
+                    Schemes
+                  </Link>
+                </li>
+                <li>
+                  <Link className="transition-colors hover:text-orange-500" href="/dashboard">
+                    Eligibility Check
+                  </Link>
+                </li>
+                <li>
+                  <Link className="transition-colors hover:text-orange-500" href="/login">
+                    Sign In
+                  </Link>
+                </li>
+                <li>
+                  <Link className="transition-colors hover:text-orange-500" href="/register">
+                    Register
+                  </Link>
+                </li>
               </ul>
             </div>
-            {/* Legal Col */}
             <div>
-              <h4 className="font-bold mb-4 text-white">Legal</h4>
+              <h4 className="mb-4 font-bold text-white">Legal</h4>
               <ul className="space-y-2 text-sm text-gray-400">
-                <li><a className="hover:text-orange-500 transition-colors" href="#">Privacy Policy</a></li>
-                <li><a className="hover:text-orange-500 transition-colors" href="#">Terms of Service</a></li>
-                <li><a className="hover:text-orange-500 transition-colors" href="#">Accessibility</a></li>
-                <li><a className="hover:text-orange-500 transition-colors" href="#">Sitemap</a></li>
+                <li>
+                  <a className="transition-colors hover:text-orange-500" href="#">
+                    Privacy Policy
+                  </a>
+                </li>
+                <li>
+                  <a className="transition-colors hover:text-orange-500" href="#">
+                    Terms of Service
+                  </a>
+                </li>
+                <li>
+                  <a className="transition-colors hover:text-orange-500" href="#">
+                    Accessibility
+                  </a>
+                </li>
               </ul>
             </div>
-            {/* Connect Col */}
             <div>
-              <h4 className="font-bold mb-4 text-white">Connect</h4>
+              <h4 className="mb-4 font-bold text-white">Connect</h4>
               <ul className="space-y-3 text-sm text-gray-400">
                 <li className="flex items-center gap-2">
-                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2"></path></svg>
-                  info@yojanaSaarthi.gov.in
+                  <span className="material-symbols-outlined text-[18px]">mail</span>
+                  info@yojanasaarthi.in
                 </li>
                 <li className="flex items-center gap-2">
-                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2"></path></svg>
-                  +91 1800-123-4567
+                  <span className="material-symbols-outlined text-[18px]">call</span>
+                  1800-123-4567
                 </li>
               </ul>
             </div>
           </div>
           <div className="border-t border-white/10 pt-8 text-center text-sm text-gray-500">
-            © 2034 Yojana Saarthi. All rights reserved.
+            &copy; 2025 Yojana Saarthi. All rights reserved.
           </div>
         </div>
       </footer>
-      {/* END: Footer */}
     </>
   );
 }

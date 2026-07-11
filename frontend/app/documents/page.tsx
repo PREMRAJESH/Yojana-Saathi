@@ -2,7 +2,7 @@
 import { useState, useRef, useEffect } from "react";
 import Link from "next/link";
 import { GOV_ID_KEYS, GOV_ID_LABELS, type GovIdKey, type IntakeResponse } from "../lib/api-types";
-import { supabase } from "../lib/supabaseClient";
+import { supabase, isSupabaseConfigured } from "../lib/supabaseClient";
 
 type DocStatus = "uploaded" | "missing" | "uploading";
 
@@ -14,46 +14,23 @@ type DocItem = {
   requiredFor: string[];
 };
 
-function docsFromIntake(data: IntakeResponse): DocItem[] {
-  return GOV_ID_KEYS.map((key) => {
-    const requiredFor = data.eligible_schemes
-      .filter(s => s.missing_documents.includes(key))
-      .map(s => s.scheme_name);
-    const wasMissing = data.eligible_schemes.some(s => s.missing_documents.includes(key));
-    const status: DocStatus = wasMissing ? "missing" : "uploaded";
-    return { key, status, requiredFor };
-  });
-}
-
-function getInitialDocs(): DocItem[] {
-  const fallback = GOV_ID_KEYS.map((key) => ({ key, status: "missing" as const, requiredFor: [] }));
-  if (typeof window === "undefined") return fallback;
-
-  const raw = sessionStorage.getItem("intake_result");
-  if (!raw) return fallback;
-
-  try {
-    const data = JSON.parse(raw) as IntakeResponse;
-    return docsFromIntake(data);
-  } catch {
-    return fallback;
-  }
-}
+import { supabase } from "../lib/supabaseClient";
 
 export default function Documents() {
-  const [docs, setDocs] = useState<DocItem[]>(getInitialDocs);
+  const [docs, setDocs] = useState<DocItem[]>(
+    GOV_ID_KEYS.map((key) => ({ key, status: "missing", requiredFor: [] }))
+  );
   const [dragOver, setDragOver] = useState<GovIdKey | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [activeUploadKey, setActiveUploadKey] = useState<GovIdKey | null>(null);
-  const uploadTimersRef = useRef<Partial<Record<GovIdKey, ReturnType<typeof setTimeout>>>>({});
 
+  // Populate initial state from intake result
   useEffect(() => {
-    let cancelled = false;
-
     async function loadData() {
       let data: IntakeResponse | null = null;
 
       try {
+        if (!isSupabaseConfigured || !supabase) { throw new Error("supabase not configured"); }
         const { data: { user } } = await supabase.auth.getUser();
         if (user) {
           const { data: history } = await supabase
@@ -64,14 +41,12 @@ export default function Documents() {
             .limit(1)
             .single();
 
-          if (history && history.results) {
-            data = history.results as IntakeResponse;
-          }
+        if (history && history.results) {
+          data = history.results as IntakeResponse;
         }
-      } catch {
-        // Fall back to session storage below.
       }
 
+      // Fallback
       if (!data) {
         const raw = sessionStorage.getItem("intake_result");
         if (raw) {
@@ -79,33 +54,26 @@ export default function Documents() {
         }
       }
 
-      if (data && !cancelled) {
-        setDocs(docsFromIntake(data));
+      if (data) {
+        setDocs(GOV_ID_KEYS.map((key) => {
+          const requiredFor = data!.eligible_schemes
+            .filter(s => s.missing_documents.includes(key))
+            .map(s => s.scheme_name);
+          const wasMissing = data!.eligible_schemes.some(s => s.missing_documents.includes(key));
+          return { key, status: wasMissing ? "missing" : "uploaded", requiredFor };
+        }));
       }
     }
-
     loadData();
-
-    return () => {
-      cancelled = true;
-      Object.values(uploadTimersRef.current).forEach((timer) => {
-        if (timer) clearTimeout(timer);
-      });
-      uploadTimersRef.current = {};
-    };
   }, []);
 
   const uploaded = docs.filter(d => d.status === "uploaded");
   const missing = docs.filter(d => d.status !== "uploaded");
 
   const handleUpload = (key: GovIdKey, file: File) => {
-    const existingTimer = uploadTimersRef.current[key];
-    if (existingTimer) clearTimeout(existingTimer);
-
     setDocs(prev => prev.map(d => d.key === key ? { ...d, status: "uploading" } : d));
-    uploadTimersRef.current[key] = setTimeout(() => {
+    setTimeout(() => {
       setDocs(prev => prev.map(d => d.key === key ? { ...d, status: "uploaded", fileName: file.name } : d));
-      delete uploadTimersRef.current[key];
     }, 1500);
   };
 
