@@ -152,9 +152,10 @@ export function CustomCursor() {
     <>
       <div
         ref={dotRef}
-        className="pointer-events-none fixed z-[9999]"
+        className="pointer-events-none fixed"
         style={{
           top: 0, left: 0,
+          zIndex: 9999,
           width: "7px", height: "7px",
           borderRadius: "50%",
           backgroundColor: "#F2641A",
@@ -163,9 +164,10 @@ export function CustomCursor() {
       />
       <div
         ref={ringRef}
-        className="pointer-events-none fixed z-[9998]"
+        className="pointer-events-none fixed"
         style={{
           top: 0, left: 0,
+          zIndex: 9998,
           width: "30px", height: "30px",
           borderRadius: "50%",
           border: "1px solid #2C4870",
